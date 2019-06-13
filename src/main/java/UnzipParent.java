@@ -34,6 +34,7 @@ import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileIO;
 import org.apache.beam.sdk.io.fs.MatchResult;
+import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
@@ -194,7 +195,7 @@ public class UnzipParent {
                         .apply("MatchFile(s)", FileIO.match().filepattern(options.getInputFilePattern()))
                         .apply(
                                 "DecompressFile(s)",
-                                ParDo.of(new DecompressNew(options.getInputFilePattern(), options.getOutputDirectory())));
+                                ParDo.of(new DecompressNew(options.getOutputDirectory())));
 
         return pipeline.run();
     }
@@ -208,27 +209,21 @@ public class UnzipParent {
         private static final long serialVersionUID = 2015166770614756341L;
         private long filesUnzipped=0;
 
-        private final ValueProvider<String> inputLocation;
         private final ValueProvider<String> destinationLocation;
 
-        DecompressNew(ValueProvider<String> inputLocation, ValueProvider<String> destinationLocation) {
-            this.inputLocation = inputLocation;
+        DecompressNew(ValueProvider<String> destinationLocation) {
             this.destinationLocation = destinationLocation;
         }
 
         @ProcessElement
         public void processElement(ProcessContext c){
-            String p = c.element().resourceId().getScheme();
+            ResourceId p = c.element().resourceId();
             GcsUtil.GcsUtilFactory factory = new GcsUtil.GcsUtilFactory();
             GcsUtil u = factory.create(c.getPipelineOptions());
             byte[] buffer = new byte[100000000];
             try{
-                SeekableByteChannel sek = u.open(GcsPath.fromUri(this.inputLocation.get()));
-
-/*
-  Check for zip or tar file types
- */
-                String ext = FilenameUtils.getExtension(this.inputLocation.get());
+                SeekableByteChannel sek = u.open(GcsPath.fromUri(p.toString()));
+                String ext = FilenameUtils.getExtension(p.toString());
                 if (ext.equalsIgnoreCase("zip") ) {
                     InputStream is;
                     is = Channels.newInputStream(sek);
@@ -237,7 +232,7 @@ public class UnzipParent {
                     ZipEntry ze = zis.getNextEntry();
                     while(ze!=null){
                         LoggerFactory.getLogger("unzip").info("Unzipping File {}",ze.getName());
-                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ ze.getName()), getType(ze.getName()));
+                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ "unzip" + ze.getName()), getType(ze.getName()));
                         OutputStream os = Channels.newOutputStream(wri);
                         int len;
                         while((len=zis.read(buffer))>0){
