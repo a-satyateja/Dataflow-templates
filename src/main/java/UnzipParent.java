@@ -33,6 +33,7 @@ import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileIO;
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
 import org.apache.beam.sdk.io.fs.MatchResult;
 import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.options.Description;
@@ -153,6 +154,12 @@ public class UnzipParent {
         ValueProvider<String> getOutputDirectory();
 
         void setOutputDirectory(ValueProvider<String> value);
+
+        @Description("The name of the topic which data should be published to. "
+                + "The name should be in the format of projects/<project-id>/topics/<topic-name>.")
+        @Required
+        ValueProvider<String> getOutputTopic();
+        void setOutputTopic(ValueProvider<String> value);
     }
 
     /**
@@ -190,12 +197,12 @@ public class UnzipParent {
         Pipeline pipeline = Pipeline.create(options);
 
         // Run the pipeline over the work items.
-        PCollection<Long> decompressOut =
                 pipeline
                         .apply("MatchFile(s)", FileIO.match().filepattern(options.getInputFilePattern()))
                         .apply(
                                 "DecompressFile(s)",
-                                ParDo.of(new DecompressNew(options.getOutputDirectory())));
+                                ParDo.of(new DecompressNew(options.getOutputDirectory())))
+                        .apply("Write to PubSub", PubsubIO.writeStrings().to(options.getOutputTopic()));
 
         return pipeline.run();
     }
@@ -205,7 +212,7 @@ public class UnzipParent {
      * object back to a specified destination location.
      */
     @SuppressWarnings("serial")
-    public static class DecompressNew extends DoFn<MatchResult.Metadata,Long>{
+    public static class DecompressNew extends DoFn<MatchResult.Metadata,String>{
         private static final long serialVersionUID = 2015166770614756341L;
         private long filesUnzipped=0;
 
@@ -220,11 +227,13 @@ public class UnzipParent {
             ResourceId p = c.element().resourceId();
             GcsUtil.GcsUtilFactory factory = new GcsUtil.GcsUtilFactory();
             GcsUtil u = factory.create(c.getPipelineOptions());
+            String desPath = "";
             byte[] buffer = new byte[100000000];
             try{
                 SeekableByteChannel sek = u.open(GcsPath.fromUri(p.toString()));
                 String ext = FilenameUtils.getExtension(p.toString());
                 if (ext.equalsIgnoreCase("zip") ) {
+                    desPath = this.destinationLocation.get()+ "unzip";
                     InputStream is;
                     is = Channels.newInputStream(sek);
                     BufferedInputStream bis = new BufferedInputStream(is);
@@ -245,6 +254,7 @@ public class UnzipParent {
                     zis.closeEntry();
                     zis.close();
                 } else if(ext.equalsIgnoreCase("tar")) {
+                    desPath = this.destinationLocation.get()+ "untar";
                     InputStream is;
                     is = Channels.newInputStream(sek);
                     BufferedInputStream bis = new BufferedInputStream(is);
@@ -268,7 +278,8 @@ public class UnzipParent {
             catch(Exception e){
                 e.printStackTrace();
             }
-            c.output(filesUnzipped);
+
+            c.output(desPath);
         }
 
         private String getType(String fName){
