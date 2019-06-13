@@ -14,6 +14,7 @@
  * the License.
  */
 
+package com.techolution.ipcybris;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -21,21 +22,20 @@ import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.channels.WritableByteChannel;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-
-import org.apache.beam.repackaged.beam_sdks_java_core.org.apache.commons.compress.archivers.tar.TarArchiveEntry;
-import org.apache.beam.repackaged.beam_sdks_java_core.org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileIO;
-import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
 import org.apache.beam.sdk.io.fs.MatchResult;
 import org.apache.beam.sdk.io.fs.ResourceId;
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
@@ -48,7 +48,7 @@ import org.apache.beam.sdk.util.gcsfs.GcsPath;
 import org.apache.beam.sdk.values.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.commons.io.FilenameUtils;
+import static org.apache.beam.sdk.util.GcsUtil.*;
 
 /**
  * This pipeline decompresses file(s) from Google Cloud Storage and re-uploads them to a destination
@@ -106,10 +106,10 @@ import org.apache.commons.io.FilenameUtils;
  * --outputFailureFile=gs://${PROJECT_ID}/decompressed-dir/failed.csv"
  * </pre>
  */
-public class UnzipParent {
+public class UnzipNested {
 
     /** The logger to output status messages to. */
-    private static final Logger LOG = LoggerFactory.getLogger(UnzipParent.class);
+    private static final Logger LOG = LoggerFactory.getLogger(UnzipNested.class);
 
     /**
      * A list of the {@link Compression} values excluding {@link Compression#AUTO} and {@link
@@ -197,12 +197,13 @@ public class UnzipParent {
         Pipeline pipeline = Pipeline.create(options);
 
         // Run the pipeline over the work items.
-                pipeline
-                        .apply("MatchFile(s)", FileIO.match().filepattern(options.getInputFilePattern()))
-                        .apply(
-                                "DecompressFile(s)",
-                                ParDo.of(new DecompressNew(options.getOutputDirectory())))
-                        .apply("Write to PubSub", PubsubIO.writeStrings().to(options.getOutputTopic()));
+
+        pipeline
+                .apply("MatchFile(s)", FileIO.match().filepattern(options.getInputFilePattern()))
+                .apply(
+                        "DecompressFile(s)",
+                        ParDo.of(new DecompressNew(options.getOutputDirectory())))
+                .apply("Write to PubSub", PubsubIO.writeStrings().to(options.getOutputTopic()));
 
         return pipeline.run();
     }
@@ -215,6 +216,9 @@ public class UnzipParent {
     public static class DecompressNew extends DoFn<MatchResult.Metadata,String>{
         private static final long serialVersionUID = 2015166770614756341L;
         private long filesUnzipped=0;
+        private String outp = "NA";
+        private List<String> publishresults= new ArrayList<>();
+        private List<String> res=new ArrayList<>();
 
         private final ValueProvider<String> destinationLocation;
 
@@ -225,61 +229,44 @@ public class UnzipParent {
         @ProcessElement
         public void processElement(ProcessContext c){
             ResourceId p = c.element().resourceId();
-            GcsUtil.GcsUtilFactory factory = new GcsUtil.GcsUtilFactory();
+            GcsUtilFactory factory = new GcsUtilFactory();
             GcsUtil u = factory.create(c.getPipelineOptions());
-            String desPath = "";
             byte[] buffer = new byte[100000000];
             try{
                 SeekableByteChannel sek = u.open(GcsPath.fromUri(p.toString()));
-                String ext = FilenameUtils.getExtension(p.toString());
-                if (ext.equalsIgnoreCase("zip") ) {
-                    desPath = this.destinationLocation.get()+ "unzip";
-                    InputStream is;
-                    is = Channels.newInputStream(sek);
-                    BufferedInputStream bis = new BufferedInputStream(is);
-                    ZipInputStream zis = new ZipInputStream(bis);
-                    ZipEntry ze = zis.getNextEntry();
-                    while(ze!=null){
-                        LoggerFactory.getLogger("unzip").info("Unzipping File {}",ze.getName());
-                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ "unzip" + ze.getName()), getType(ze.getName()));
-                        OutputStream os = Channels.newOutputStream(wri);
-                        int len;
-                        while((len=zis.read(buffer))>0){
-                            os.write(buffer,0,len);
-                        }
-                        os.close();
-                        filesUnzipped++;
-                        ze=zis.getNextEntry();
+                InputStream is;
+                is = Channels.newInputStream(sek);
+                BufferedInputStream bis = new BufferedInputStream(is);
+                ZipInputStream zis = new ZipInputStream(bis);
+                ZipEntry ze = zis.getNextEntry();
+                while(ze!=null){
+                    LoggerFactory.getLogger("unzip").info("Unzipping File {}",ze.getName());
+                    WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ ze.getName()), getType(ze.getName()));
+                    OutputStream os = Channels.newOutputStream(wri);
+                    int len;
+                    while((len=zis.read(buffer))>0){
+                        os.write(buffer,0,len);
                     }
-                    zis.closeEntry();
-                    zis.close();
-                } else if(ext.equalsIgnoreCase("tar")) {
-                    desPath = this.destinationLocation.get()+ "untar";
-                    InputStream is;
-                    is = Channels.newInputStream(sek);
-                    BufferedInputStream bis = new BufferedInputStream(is);
-                    TarArchiveInputStream tis = new TarArchiveInputStream(bis);
-                    TarArchiveEntry te = tis.getNextTarEntry();
-                    while(te!=null){
-                        LoggerFactory.getLogger("unzip").info("Unzipping File {}",te.getName());
-                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ "untar" + te.getName()), getType(te.getName()));
-                        OutputStream os = Channels.newOutputStream(wri);
-                        int len;
-                        while((len=tis.read(buffer))>0){
-                            os.write(buffer,0,len);
-                        }
-                        os.close();
-                        filesUnzipped++;
-                        te=tis.getNextTarEntry();
-                    }
-                    tis.close();
+                    os.close();
+                    filesUnzipped++;
+                    publishresults.add(this.destinationLocation.get()+ze.getName());
+                    ze=zis.getNextEntry();
                 }
+                for (String path: publishresults){
+                    if (path.toUpperCase().contains(".TIF")) {
+                        res.add('"'+path+'"');
+                    }
+                }
+                outp = res.toString();
+                publishresults.clear();
+                res.clear();
+                zis.closeEntry();
+                zis.close();
             }
             catch(Exception e){
                 e.printStackTrace();
             }
-
-            c.output(desPath);
+            c.output(outp);
         }
 
         private String getType(String fName){
