@@ -22,6 +22,7 @@ import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.channels.WritableByteChannel;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -229,6 +230,7 @@ public class UnzipParent {
             GcsUtil.GcsUtilFactory factory = new GcsUtil.GcsUtilFactory();
             GcsUtil u = factory.create(c.getPipelineOptions());
             String desPath = "";
+            String randomStr = getRandomString(10);
             byte[] buffer = new byte[100000000];
             try{
                 SeekableByteChannel sek = u.open(GcsPath.fromUri(p.toString()));
@@ -242,7 +244,7 @@ public class UnzipParent {
                     ZipEntry ze = zis.getNextEntry();
                     while(ze!=null){
                         LoggerFactory.getLogger("unzip").info("Unzipping File {}",ze.getName());
-                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ "unzip" + ze.getName()), getType(ze.getName()));
+                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ randomStr +"-unzip/"   + ze.getName()), getType(ze.getName()));
                         OutputStream os = Channels.newOutputStream(wri);
                         int len;
                         while((len=zis.read(buffer))>0){
@@ -263,7 +265,7 @@ public class UnzipParent {
                     TarArchiveEntry te = tis.getNextTarEntry();
                     while(te!=null){
                         LoggerFactory.getLogger("unzip").info("Unzipping File {}",te.getName());
-                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ "untar" + te.getName()), getType(te.getName()));
+                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ randomStr + "-untar/" + te.getName()), getType(te.getName()));
                         OutputStream os = Channels.newOutputStream(wri);
                         int len;
                         while((len=tis.read(buffer))>0){
@@ -292,6 +294,20 @@ public class UnzipParent {
             else {
                 return "text/plain";
             }
+        }
+
+        public static String getRandomString(int length) {
+            char[] chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRST".toCharArray();
+
+            StringBuilder sb = new StringBuilder();
+            Random random = new Random();
+            for (int i = 0; i < length; i++) {
+                char c = chars[random.nextInt(chars.length)];
+                sb.append(c);
+            }
+            String randomStr = sb.toString();
+
+            return randomStr;
         }
     }
 }
