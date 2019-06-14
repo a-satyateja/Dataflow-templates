@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+
+import com.google.gson.*;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.Compression;
@@ -218,7 +220,9 @@ public class UnzipNested {
         private long filesUnzipped=0;
         private String outp = "NA";
         private List<String> publishresults= new ArrayList<>();
-        private List<String> res=new ArrayList<>();
+        private List<String> images=new ArrayList<>();
+        private List<String> xmls=new ArrayList<>();
+        private List<String> others=new ArrayList<>();
 
         private final ValueProvider<String> destinationLocation;
 
@@ -252,14 +256,11 @@ public class UnzipNested {
                     publishresults.add(this.destinationLocation.get()+ze.getName());
                     ze=zis.getNextEntry();
                 }
-                for (String path: publishresults){
-                    if (path.toUpperCase().contains(".TIF")) {
-                        res.add('"'+path+'"');
-                    }
-                }
-                outp = res.toString();
+                outp = getFinalOutput(publishresults);
                 publishresults.clear();
-                res.clear();
+                images.clear();
+                xmls.clear();
+                others.clear();
                 zis.closeEntry();
                 zis.close();
             }
@@ -268,7 +269,27 @@ public class UnzipNested {
             }
             c.output(outp);
         }
-
+        private String getFinalOutput(List<String> publishresults) {
+            Gson gsonBuilder = new GsonBuilder().create();
+            JsonParser jsonParser = new JsonParser();
+            for (String path: publishresults){
+                if (path.toUpperCase().contains(".TIF")) {
+                    images.add(path);
+                } else if (path.toUpperCase().contains(".XML")) {
+                    xmls.add(path);
+                } else {
+                    others.add(path);
+                }
+            }
+            JsonObject pubsubout = new JsonObject();
+            JsonArray imagesArray = jsonParser.parse(gsonBuilder.toJson(images)).getAsJsonArray();
+            JsonArray xmlsArray = jsonParser.parse(gsonBuilder.toJson(xmls)).getAsJsonArray();
+            JsonArray othersArray = jsonParser.parse(gsonBuilder.toJson(others)).getAsJsonArray();
+            pubsubout.add("images", imagesArray);
+            pubsubout.add("xmls", xmlsArray);
+            pubsubout.add("others", othersArray);
+            return pubsubout.toString();
+        }
         private String getType(String fName){
             if(fName.endsWith(".zip")){
                 return "application/x-zip-compressed";
