@@ -1,18 +1,3 @@
-/*
- * Copyright (C) 2018 Google Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not
- * use this file except in compliance with the License. You may obtain a copy of
- * the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
- * the License.
- */
 
 package com.techolution.ipcybris;
 
@@ -190,21 +175,13 @@ public class UnzipParent {
      */
     public static PipelineResult run(Options options) {
 
-        /*
-         * Steps:
-         *   1) Decompress the input files found and output them to the output directory
-         */
-
         // Create the pipeline
         Pipeline pipeline = Pipeline.create(options);
 
         // Run the pipeline over the work items.
-                pipeline
-                        .apply("MatchFile(s)", FileIO.match().filepattern(options.getInputFilePattern()))
-                        .apply(
-                                "DecompressFile(s)",
-                                ParDo.of(new DecompressNew(options.getOutputDirectory())))
-                        .apply("Write to PubSub", PubsubIO.writeStrings().to(options.getOutputTopic()));
+        pipeline.apply("MatchFile(s)", FileIO.match().filepattern(options.getInputFilePattern()))
+                .apply("DecompressFile(s)", ParDo.of(new DecompressNew(options.getOutputDirectory())))
+                .apply("Write to PubSub", PubsubIO.writeStrings().to(options.getOutputTopic()));
 
         return pipeline.run();
     }
@@ -236,7 +213,7 @@ public class UnzipParent {
                 SeekableByteChannel sek = u.open(GcsPath.fromUri(p.toString()));
                 String ext = FilenameUtils.getExtension(p.toString());
                 if (ext.equalsIgnoreCase("zip") ) {
-                    desPath = this.destinationLocation.get()+ "unzip";
+                    desPath = this.destinationLocation.get()+ randomStr +"-unzip/";
                     InputStream is;
                     is = Channels.newInputStream(sek);
                     BufferedInputStream bis = new BufferedInputStream(is);
@@ -257,7 +234,7 @@ public class UnzipParent {
                     zis.closeEntry();
                     zis.close();
                 } else if(ext.equalsIgnoreCase("tar")) {
-                    desPath = this.destinationLocation.get()+ "untar";
+                    desPath = this.destinationLocation.get()+ randomStr + "-untar/";
                     InputStream is;
                     is = Channels.newInputStream(sek);
                     BufferedInputStream bis = new BufferedInputStream(is);
