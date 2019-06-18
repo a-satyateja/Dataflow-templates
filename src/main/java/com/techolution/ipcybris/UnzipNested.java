@@ -3,6 +3,7 @@ package com.techolution.ipcybris;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
@@ -35,6 +36,9 @@ import org.apache.beam.sdk.util.gcsfs.GcsPath;
 import org.apache.beam.sdk.values.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.imageio.ImageIO;
+
 import static org.apache.beam.sdk.util.GcsUtil.*;
 
 /**
@@ -237,6 +241,13 @@ public class UnzipNested {
                         os.write(buffer,0,len);
                     }
                     os.close();
+                    String tifLocation = this.destinationLocation.get()+ ze.getName();
+                    if(tifLocation.toUpperCase().contains(".TIF")) {
+                        BufferedImage tif = ImageIO.read(new File(this.destinationLocation.get()+ ze.getName()));
+                        String pngLocation = tifLocation.replaceAll("tif", "png");
+                        ImageIO.write(tif, "png", new File(pngLocation));
+                        tif.flush();
+                    }
                     filesUnzipped++;
                     publishresults.add(this.destinationLocation.get()+ze.getName());
                     ze=zis.getNextEntry();
