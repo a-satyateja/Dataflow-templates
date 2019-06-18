@@ -38,6 +38,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
+import javax.imageio.stream.ImageInputStream;
+import javax.imageio.stream.ImageOutputStream;
 
 import static org.apache.beam.sdk.util.GcsUtil.*;
 
@@ -234,19 +236,22 @@ public class UnzipNested {
                 ZipEntry ze = zis.getNextEntry();
                 while(ze!=null){
                     LoggerFactory.getLogger("unzip").info("Unzipping File {}",ze.getName());
-                    WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ ze.getName()), getType(ze.getName()));
-                    OutputStream os = Channels.newOutputStream(wri);
                     int len;
-                    while((len=zis.read(buffer))>0){
-                        os.write(buffer,0,len);
-                    }
-                    os.close();
-                    String tifLocation = this.destinationLocation.get()+ ze.getName();
-                    if(tifLocation.toUpperCase().contains(".TIF")) {
-                        BufferedImage tif = ImageIO.read(new File(this.destinationLocation.get()+ ze.getName()));
-                        String pngLocation = tifLocation.replaceAll("tif", "png");
-                        ImageIO.write(tif, "png", new File(pngLocation));
-                        tif.flush();
+                    if (ze.getName().toUpperCase().contains(".TIF")) {
+                        // writes to the output image in specified format
+                        String tif_path = this.destinationLocation.get()+ ze.getName();
+                        String png_path = tif_path.replaceAll(".TIF", ".png");
+                        WritableByteChannel wri = u.create(GcsPath.fromUri(png_path), getType(ze.getName()));
+                        OutputStream os = Channels.newOutputStream(wri);
+                        ImageIO.write(ImageIO.read(zis), "png", os);
+                        os.close();
+                    } else {
+                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ ze.getName()), getType(ze.getName()));
+                        OutputStream os = Channels.newOutputStream(wri);
+                        while ((len = zis.read(buffer)) > 0) {
+                            os.write(buffer, 0, len);
+                        }
+                        os.close();
                     }
                     filesUnzipped++;
                     publishresults.add(this.destinationLocation.get()+ze.getName());
