@@ -219,7 +219,7 @@ public class UnzipNested {
         DecompressNew(ValueProvider<String> destinationLocation) {
             this.destinationLocation = destinationLocation;
         }
-
+        private static final Logger LOG = LoggerFactory.getLogger(UnzipNested.class);
         @ProcessElement
         public void processElement(ProcessContext c){
             ResourceId p = c.element().resourceId();
@@ -247,6 +247,7 @@ public class UnzipNested {
                     if (ze.getName().toUpperCase().contains(".TIF")) {
                         // writes to the output image in specified format
                         String tif_path = this.destinationLocation.get()+ ze.getName();
+                        LOG.info("**********" + tif_path);
                         SeekableByteChannel sek_png = u.open(GcsPath.fromUri(tif_path));
                         InputStream is_png;
                         is_png = Channels.newInputStream(sek_png);
@@ -256,7 +257,8 @@ public class UnzipNested {
                         OutputStream os_png = Channels.newOutputStream(wri_png);
 
                         BufferedImage inputImage = ImageIO.read(is_png);
-                        File file = new File("./test.png");
+                        File file = new File("test.png");
+                        LOG.info("**********" + file.getAbsolutePath());
                         ImageIO.write(inputImage, "png", file);
 
                         InputStream finalInp = new FileInputStream(file);
