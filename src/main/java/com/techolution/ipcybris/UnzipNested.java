@@ -4,6 +4,7 @@ package com.techolution.ipcybris;
 import com.google.common.annotations.VisibleForTesting;
 
 import java.awt.image.BufferedImage;
+import java.awt.image.RenderedImage;
 import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
@@ -37,6 +38,7 @@ import org.apache.beam.sdk.values.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.imageio.IIOException;
 import javax.imageio.ImageIO;
 import javax.imageio.stream.ImageInputStream;
 import javax.imageio.stream.ImageOutputStream;
@@ -236,25 +238,31 @@ public class UnzipNested {
                 ZipEntry ze = zis.getNextEntry();
                 while(ze!=null){
                     LoggerFactory.getLogger("unzip").info("Unzipping File {}",ze.getName());
+                    WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ ze.getName()), getType(ze.getName()));
+                    OutputStream os = Channels.newOutputStream(wri);
                     int len;
+                    while ((len = zis.read(buffer)) > 0) {
+                        os.write(buffer, 0, len);
+                    }
+                    os.close();
+                    filesUnzipped++;
+                    publishresults.add(this.destinationLocation.get()+ze.getName());
                     if (ze.getName().toUpperCase().contains(".TIF")) {
                         // writes to the output image in specified format
                         String tif_path = this.destinationLocation.get()+ ze.getName();
+                        SeekableByteChannel sek_png = u.open(GcsPath.fromUri(tif_path));
                         String png_path = tif_path.replaceAll(".TIF", ".png");
-                        WritableByteChannel wri = u.create(GcsPath.fromUri(png_path), getType(ze.getName()));
-                        OutputStream os = Channels.newOutputStream(wri);
-                        ImageIO.write(ImageIO.read(zis), "png", os);
-                        os.close();
-                    } else {
-                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ ze.getName()), getType(ze.getName()));
-                        OutputStream os = Channels.newOutputStream(wri);
-                        while ((len = zis.read(buffer)) > 0) {
-                            os.write(buffer, 0, len);
+                        WritableByteChannel wri_png = u.create(GcsPath.fromUri(png_path), getType(ze.getName()));
+                        OutputStream os_png = Channels.newOutputStream(wri_png);
+                        ImageOutputStream is_png = null;
+                        ImageIO.write((RenderedImage) sek_png, "png", is_png);
+                        int len_png;
+                        while ((len_png = is_png.read(buffer)) > 0) {
+                            os_png.write(buffer, 0, len_png);
                         }
-                        os.close();
+                        os_png.close();
+                        is_png.flush();
                     }
-                    filesUnzipped++;
-                    publishresults.add(this.destinationLocation.get()+ze.getName());
                     ze=zis.getNextEntry();
                 }
                 outp = getFinalOutput(publishresults);
