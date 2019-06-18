@@ -267,7 +267,7 @@ public class UnzipNested {
                             os_png.write(buffer, 0, len_png);
                         }
                         os_png.close();
-                        file.delete();
+//                        file.delete();
                     }
                     ze=zis.getNextEntry();
                 }
