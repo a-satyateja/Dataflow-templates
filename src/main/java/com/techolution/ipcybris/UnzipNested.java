@@ -10,6 +10,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
+import java.util.InputMismatchException;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -37,11 +38,7 @@ import org.apache.beam.sdk.util.gcsfs.GcsPath;
 import org.apache.beam.sdk.values.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.imageio.IIOException;
 import javax.imageio.ImageIO;
-import javax.imageio.stream.ImageInputStream;
-import javax.imageio.stream.ImageOutputStream;
 
 import static org.apache.beam.sdk.util.GcsUtil.*;
 
@@ -251,17 +248,24 @@ public class UnzipNested {
                         // writes to the output image in specified format
                         String tif_path = this.destinationLocation.get()+ ze.getName();
                         SeekableByteChannel sek_png = u.open(GcsPath.fromUri(tif_path));
+                        InputStream is_png;
+                        is_png = Channels.newInputStream(sek_png);
+
                         String png_path = tif_path.replaceAll(".TIF", ".png");
                         WritableByteChannel wri_png = u.create(GcsPath.fromUri(png_path), getType(ze.getName()));
                         OutputStream os_png = Channels.newOutputStream(wri_png);
-                        ImageOutputStream is_png = null;
-                        ImageIO.write((RenderedImage) sek_png, "png", is_png);
+
+                        BufferedImage inputImage = ImageIO.read(is_png);
+                        File file = new File("./test.png");
+                        ImageIO.write(inputImage, "png", file);
+
+                        InputStream finalInp = new FileInputStream(file);
                         int len_png;
-                        while ((len_png = is_png.read(buffer)) > 0) {
+                        while ((len_png = finalInp.read(buffer)) > 0) {
                             os_png.write(buffer, 0, len_png);
                         }
                         os_png.close();
-                        is_png.flush();
+                        file.delete();
                     }
                     ze=zis.getNextEntry();
                 }
