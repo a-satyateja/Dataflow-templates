@@ -312,6 +312,8 @@ public class UnzipNested {
                 return "application/x-zip-compressed";
             } else if(fName.endsWith(".tar")){
                 return "application/x-tar";
+            } else if(fName.toLowerCase().endsWith(".tif")){
+                return "image/tiff";
             }
             else {
                 return "text/plain";
