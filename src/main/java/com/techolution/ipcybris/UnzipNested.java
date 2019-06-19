@@ -323,6 +323,7 @@ public class UnzipNested {
             if(!images.isEmpty()) {
                 System.out.println(images);
                 imagesArray = jsonParser.parse(gsonBuilder.toJson(images)).getAsJsonArray();
+                System.out.println(imagesArray);
             }
             if (!others.isEmpty()) {
                 othersArray = jsonParser.parse(gsonBuilder.toJson(others)).getAsJsonArray();
