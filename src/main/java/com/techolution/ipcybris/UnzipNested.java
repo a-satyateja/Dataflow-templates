@@ -309,16 +309,20 @@ public class UnzipNested {
                     others.add(path);
                 }
             }
-            String imagesArray_before = images.toString();
-            String imagesArray_after = imagesArray_before.replaceAll("gs://", "https://storage.googleapis.com/");
+            images.forEach(e -> {
+               e.replaceAll("gs://", "https://storage.googleapis.com/");
+            });
+//            String imagesArray_before = images.toString();
+
+//            String imagesArray_after = imagesArray_before.replaceAll("gs://", "https://storage.googleapis.com/");
             JsonObject pubsubout = new JsonObject();
             JsonArray othersArray = new JsonArray();
             JsonArray imagesArray = new JsonArray();
             JsonArray xmlsArray = new JsonArray();
 
-            if(!imagesArray_after.isEmpty()) {
-                System.out.println(imagesArray_after);
-                imagesArray = jsonParser.parse(gsonBuilder.toJson(imagesArray_after)).getAsJsonArray();
+            if(!images.isEmpty()) {
+                System.out.println(images);
+                imagesArray = jsonParser.parse(gsonBuilder.toJson(images)).getAsJsonArray();
             }
             if (!others.isEmpty()) {
                 othersArray = jsonParser.parse(gsonBuilder.toJson(others)).getAsJsonArray();
