@@ -137,21 +137,20 @@ public class UnzipNested {
     public interface Options extends PipelineOptions {
         @Description("The input file pattern to read from (e.g. gs://bucket-name/compressed/*.gz)")
         @Required
-        ValueProvider<String> getInputFilePattern();
+        String getInputFilePattern();
 
-        void setInputFilePattern(ValueProvider<String> value);
+        void setInputFilePattern(String value);
 
         @Description("The output location to write to (e.g. gs://bucket-name/decompressed)")
         @Required
-        ValueProvider<String> getOutputDirectory();
-
-        void setOutputDirectory(ValueProvider<String> value);
+        String getOutputDirectory();
+        void setOutputDirectory(String value);
 
         @Description("The name of the topic which data should be published to. "
                 + "The name should be in the format of projects/<project-id>/topics/<topic-name>.")
         @Required
-        ValueProvider<String> getOutputTopic();
-        void setOutputTopic(ValueProvider<String> value);
+        String getOutputTopic();
+        void setOutputTopic(String value);
     }
 
     /**
@@ -165,6 +164,10 @@ public class UnzipNested {
     public static void main(String[] args) {
 
         Options options = PipelineOptionsFactory.fromArgs(args).withValidation().as(Options.class);
+//        PipelineOptions options = PipelineOptionsFactory.fromArgs(args).withValidation().create();
+        options.setInputFilePattern("gs://unzip-testing/unzip_output/testI20190521/UTIL10292/US10292321-20190521.ZIP");
+        options.setOutputDirectory("gs://unzip-testing/pubsub_out1/");
+        options.setOutputTopic("projects/ipweb-240115/topics/pipline-1");
 
         run(options);
     }
@@ -214,9 +217,9 @@ public class UnzipNested {
         private List<String> xmls=new ArrayList<>();
         private List<String> others=new ArrayList<>();
 
-        private final ValueProvider<String> destinationLocation;
+        private final String destinationLocation;
 
-        DecompressNew(ValueProvider<String> destinationLocation) {
+        DecompressNew(String destinationLocation) {
             this.destinationLocation = destinationLocation;
         }
         private static final Logger LOG = LoggerFactory.getLogger(UnzipNested.class);
@@ -235,7 +238,7 @@ public class UnzipNested {
                 ZipEntry ze = zis.getNextEntry();
                 while(ze!=null){
                     LoggerFactory.getLogger("unzip").info("Unzipping File {}",ze.getName());
-                    WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ ze.getName()), getType(ze.getName()));
+                    WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation+ ze.getName()), getType(ze.getName()));
                     OutputStream os = Channels.newOutputStream(wri);
                     int len;
                     while ((len = zis.read(buffer)) > 0) {
@@ -243,11 +246,12 @@ public class UnzipNested {
                     }
                     os.close();
                     filesUnzipped++;
-                    publishresults.add(this.destinationLocation.get()+ze.getName());
+                    publishresults.add(this.destinationLocation+ze.getName());
                     if (ze.getName().toUpperCase().contains(".TIF")) {
                         // writes to the output image in specified format
-                        String tif_path = this.destinationLocation.get()+ ze.getName();
+                        String tif_path = this.destinationLocation+ ze.getName();
                         LOG.info("**********" + tif_path);
+                        System.out.println("**********" + tif_path);
                         SeekableByteChannel sek_png = u.open(GcsPath.fromUri(tif_path));
                         InputStream is_png;
                         is_png = Channels.newInputStream(sek_png);
@@ -259,6 +263,7 @@ public class UnzipNested {
                         BufferedImage inputImage = ImageIO.read(is_png);
                         File file = new File("test.png");
                         LOG.info("**********" + file.getAbsolutePath());
+                        System.out.println("**********" + file.getAbsolutePath());
                         ImageIO.write(inputImage, "png", file);
 
                         InputStream finalInp = new FileInputStream(file);
