@@ -3,6 +3,7 @@ package com.techolution.ipcybris;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
@@ -35,6 +36,9 @@ import org.apache.beam.sdk.util.gcsfs.GcsPath;
 import org.apache.beam.sdk.values.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.imageio.ImageIO;
+
 import static org.apache.beam.sdk.util.GcsUtil.*;
 
 /**
@@ -239,6 +243,33 @@ public class UnzipNested {
                     os.close();
                     filesUnzipped++;
                     publishresults.add(this.destinationLocation.get()+ze.getName());
+                    if (ze.getName().toUpperCase().contains(".TIF")) {
+                        // writes to the output image in specified format
+                        String tif_path = this.destinationLocation+ ze.getName();
+                        SeekableByteChannel sek_png = u.open(GcsPath.fromUri(tif_path));
+                        InputStream is_png;
+                        is_png = Channels.newInputStream(sek_png);
+
+                        String png_path = tif_path.replaceAll(".TIF", ".png");
+                        WritableByteChannel wri_png = u.create(GcsPath.fromUri(png_path), "image/png");
+                        OutputStream os_png = Channels.newOutputStream(wri_png);
+
+                        BufferedImage inputImage = ImageIO.read(is_png);
+                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+                        ImageIO.write(inputImage, "png", baos);
+
+                        InputStream finalInp = new ByteArrayInputStream(baos.toByteArray());
+                        int len_png;
+                        while ((len_png = finalInp.read(buffer)) > 0) {
+                            os_png.write(buffer, 0, len_png);
+                        }
+                        os_png.close();
+                        finalInp.close();
+                        baos.close();
+                        inputImage.flush();
+                        u.remove(publishresults);
+                    }
                     ze=zis.getNextEntry();
                 }
                 outp = getFinalOutput(publishresults);
@@ -266,12 +297,23 @@ public class UnzipNested {
                     others.add(path);
                 }
             }
-            String imagesArray_before = images.toString();
-            String imagesArray_after = imagesArray_before.replaceAll("gs://", "https://storage.googleapis.com/");
+            images.forEach(e -> {
+                e.replaceAll("gs://", "https://storage.googleapis.com/");
+            });
             JsonObject pubsubout = new JsonObject();
-            JsonArray imagesArray = jsonParser.parse(imagesArray_after).getAsJsonArray();
-            JsonArray xmlsArray = jsonParser.parse(gsonBuilder.toJson(xmls)).getAsJsonArray();
-            JsonArray othersArray = jsonParser.parse(gsonBuilder.toJson(others)).getAsJsonArray();
+            JsonArray othersArray = new JsonArray();
+            JsonArray imagesArray = new JsonArray();
+            JsonArray xmlsArray = new JsonArray();
+
+            if(!images.isEmpty()) {
+                imagesArray = jsonParser.parse(gsonBuilder.toJson(images)).getAsJsonArray();
+            }
+            if (!others.isEmpty()) {
+                othersArray = jsonParser.parse(gsonBuilder.toJson(others)).getAsJsonArray();
+            }
+            if(!xmls.isEmpty()) {
+                xmlsArray = jsonParser.parse(gsonBuilder.toJson(xmls)).getAsJsonArray();
+            }
             pubsubout.add("images", imagesArray);
             pubsubout.add("xmls", xmlsArray);
             pubsubout.add("others", othersArray);
@@ -282,6 +324,8 @@ public class UnzipNested {
                 return "application/x-zip-compressed";
             } else if(fName.endsWith(".tar")){
                 return "application/x-tar";
+            } else if(fName.toLowerCase().endsWith(".tif")){
+                return "image/tiff";
             }
             else {
                 return "text/plain";
