@@ -278,7 +278,7 @@ public class UnzipNested {
                         finalInp.close();
                         baos.close();
                         inputImage.flush();
-//                        file.delete();
+                        u.remove(publishresults);
                     }
                     ze=zis.getNextEntry();
                 }
@@ -293,6 +293,7 @@ public class UnzipNested {
             catch(Exception e){
                 e.printStackTrace();
             }
+
             c.output(outp);
         }
         private String getFinalOutput(List<String> publishresults) {
