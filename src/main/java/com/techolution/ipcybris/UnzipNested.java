@@ -257,7 +257,7 @@ public class UnzipNested {
                         is_png = Channels.newInputStream(sek_png);
 
                         String png_path = tif_path.replaceAll(".TIF", ".png");
-                        WritableByteChannel wri_png = u.create(GcsPath.fromUri(png_path), getType(ze.getName()));
+                        WritableByteChannel wri_png = u.create(GcsPath.fromUri(png_path), "image/png");
                         OutputStream os_png = Channels.newOutputStream(wri_png);
 
                         BufferedImage inputImage = ImageIO.read(is_png);
