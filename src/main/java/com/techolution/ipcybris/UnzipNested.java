@@ -256,7 +256,6 @@ public class UnzipNested {
 
                         BufferedImage inputImage = ImageIO.read(is_png);
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-
                         ImageIO.write(inputImage, "png", baos);
 
                         InputStream finalInp = new ByteArrayInputStream(baos.toByteArray());
