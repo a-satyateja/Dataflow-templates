@@ -318,7 +318,7 @@ public class UnzipNested {
 
             if(!imagesArray_after.isEmpty()) {
                 System.out.println(imagesArray_after);
-                imagesArray = jsonParser.parse(imagesArray_after).getAsJsonArray();
+                imagesArray = jsonParser.parse(gsonBuilder.toJson(imagesArray_after)).getAsJsonArray();
             }
             if (!others.isEmpty()) {
                 othersArray = jsonParser.parse(gsonBuilder.toJson(others)).getAsJsonArray();
