@@ -19,6 +19,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import com.google.gson.*;
+import org.apache.avro.data.Json;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.Compression;
@@ -311,9 +312,19 @@ public class UnzipNested {
             String imagesArray_before = images.toString();
             String imagesArray_after = imagesArray_before.replaceAll("gs://", "https://storage.googleapis.com/");
             JsonObject pubsubout = new JsonObject();
-            JsonArray imagesArray = jsonParser.parse(imagesArray_after).getAsJsonArray();
-            JsonArray xmlsArray = jsonParser.parse(gsonBuilder.toJson(xmls)).getAsJsonArray();
-            JsonArray othersArray = jsonParser.parse(gsonBuilder.toJson(others)).getAsJsonArray();
+            JsonArray othersArray = new JsonArray();
+            JsonArray imagesArray = new JsonArray();
+            JsonArray xmlsArray = new JsonArray();
+
+            if(!imagesArray_after.isEmpty()) {
+                imagesArray = jsonParser.parse(imagesArray_after).getAsJsonArray();
+            }
+            if (!others.isEmpty()) {
+                othersArray = jsonParser.parse(gsonBuilder.toJson(others)).getAsJsonArray();
+            }
+            if(!xmls.isEmpty()) {
+                xmlsArray = jsonParser.parse(gsonBuilder.toJson(xmls)).getAsJsonArray();
+            }
             pubsubout.add("images", imagesArray);
             pubsubout.add("xmls", xmlsArray);
             pubsubout.add("others", othersArray);
