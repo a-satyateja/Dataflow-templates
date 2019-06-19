@@ -261,17 +261,23 @@ public class UnzipNested {
                         OutputStream os_png = Channels.newOutputStream(wri_png);
 
                         BufferedImage inputImage = ImageIO.read(is_png);
-                        File file = new File("test.png");
-                        LOG.info("**********" + file.getAbsolutePath());
-                        System.out.println("**********" + file.getAbsolutePath());
-                        ImageIO.write(inputImage, "png", file);
+//                        File file = new File("test.png");
+//                        LOG.info("**********" + file.getAbsolutePath());
+//                        System.out.println("**********" + file.getAbsolutePath());
+//                        BufferedInputStream bfis = new BufferedInputStream();
+                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
-                        InputStream finalInp = new FileInputStream(file);
+                        ImageIO.write(inputImage, "png", baos);
+
+                        InputStream finalInp = new ByteArrayInputStream(baos.toByteArray());
                         int len_png;
                         while ((len_png = finalInp.read(buffer)) > 0) {
                             os_png.write(buffer, 0, len_png);
                         }
                         os_png.close();
+                        finalInp.close();
+                        baos.close();
+                        inputImage.flush();
 //                        file.delete();
                     }
                     ze=zis.getNextEntry();
