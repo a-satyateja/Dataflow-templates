@@ -3,9 +3,7 @@ package com.techolution.ipcybris;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import java.awt.image.BufferedImage;
 import java.awt.image.RenderedImage;
-import java.awt.image.renderable.RenderedImageFactory;
 import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
