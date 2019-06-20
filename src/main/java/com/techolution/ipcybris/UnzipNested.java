@@ -4,6 +4,8 @@ package com.techolution.ipcybris;
 import com.google.common.annotations.VisibleForTesting;
 
 import java.awt.image.BufferedImage;
+import java.awt.image.RenderedImage;
+import java.awt.image.renderable.RenderedImageFactory;
 import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
@@ -254,7 +256,7 @@ public class UnzipNested {
                         WritableByteChannel wri_png = u.create(GcsPath.fromUri(png_path), "image/png");
                         OutputStream os_png = Channels.newOutputStream(wri_png);
 
-                        BufferedImage inputImage = ImageIO.read(is_png);
+                        RenderedImage inputImage = ImageIO.read(is_png);
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
                         ImageIO.write(inputImage, "png", baos);
 
@@ -266,7 +268,6 @@ public class UnzipNested {
                         os_png.close();
                         finalInp.close();
                         baos.close();
-                        inputImage.flush();
                         u.remove(publishresults);
                     }
                     ze=zis.getNextEntry();
