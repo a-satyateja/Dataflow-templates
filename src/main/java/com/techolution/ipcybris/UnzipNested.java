@@ -249,14 +249,10 @@ public class UnzipNested {
                         String tif_path = this.destinationLocation+ ze.getName();
                         String png_path = tif_path.replaceAll(".TIF", ".png");
 
-                        WritableByteChannel wri_png = u.create(GcsPath.fromUri(png_path), "image/png");
+                        WritableByteChannel wri_png = u.create(GcsPath.fromUri(png_path), "image/jpg");
                         OutputStream os_png = Channels.newOutputStream(wri_png);
 
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-//                        BufferedImage tiffImage = ImageIO.read(Channels.newInputStream(u.open(GcsPath.fromUri(tif_path))));
-//                        ImageIO.write(tiffImage, "png", baos);
-
-                        // *********************************** //
                         try
                         {
                             BufferedImage image = ImageIO.read(Channels.newInputStream(u.open(GcsPath.fromUri(tif_path))));
@@ -268,13 +264,6 @@ public class UnzipNested {
                         {
                             e.printStackTrace();
                         }
-                        // *********************************** //
-
-
-
-
-
-
                         InputStream finalInp = new ByteArrayInputStream(baos.toByteArray());
                         int len_png;
                         while ((len_png = finalInp.read(buffer)) > 0) {
@@ -312,7 +301,7 @@ public class UnzipNested {
             JsonParser jsonParser = new JsonParser();
             for (String path: publishresults){
                 if (path.toUpperCase().contains(".TIF")) {
-                    images.add(path);
+                    images.add(path.replaceAll(".TIF", "jpg"));
                 } else if (path.toUpperCase().contains(".XML")) {
                     xmls.add(path);
                 } else {
