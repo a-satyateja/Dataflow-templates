@@ -3,9 +3,6 @@ package com.techolution.ipcybris;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import java.awt.image.BufferedImage;
-import java.awt.image.RenderedImage;
-import java.awt.image.renderable.RenderedImageFactory;
 import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
@@ -248,17 +245,13 @@ public class UnzipNested {
                     if (ze.getName().toUpperCase().contains(".TIF")) {
                         // writes to the output image in specified format
                         String tif_path = this.destinationLocation+ ze.getName();
-                        SeekableByteChannel sek_png = u.open(GcsPath.fromUri(tif_path));
-                        InputStream is_png;
-                        is_png = Channels.newInputStream(sek_png);
-
                         String png_path = tif_path.replaceAll(".TIF", ".png");
+
                         WritableByteChannel wri_png = u.create(GcsPath.fromUri(png_path), "image/png");
                         OutputStream os_png = Channels.newOutputStream(wri_png);
 
-                        RenderedImage inputImage = ImageIO.read(is_png);
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                        ImageIO.write(inputImage, "png", baos);
+                        ImageIO.write(ImageIO.read(Channels.newInputStream(u.open(GcsPath.fromUri(tif_path)))), "png", baos);
 
                         InputStream finalInp = new ByteArrayInputStream(baos.toByteArray());
                         int len_png;
