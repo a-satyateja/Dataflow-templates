@@ -255,10 +255,15 @@ public class UnzipNested {
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
                         try
                         {
+//                            BufferedImage image = ImageIO.read(Channels.newInputStream(u.open(GcsPath.fromUri(tif_path))));
+//                            image = convert(image, BufferedImage.TYPE_INT_RGB);
+//                            ImageIO.write(image, "jpg", baos);
+//                            System.out.println("done.");
                             BufferedImage image = ImageIO.read(Channels.newInputStream(u.open(GcsPath.fromUri(tif_path))));
-                            image = convert(image, BufferedImage.TYPE_INT_RGB);
-                            ImageIO.write(image, "jpg", baos);
-                            System.out.println("done.");
+                            BufferedImage convertedImage = new BufferedImage(image.getWidth(),
+                                    image.getHeight(), BufferedImage.TYPE_INT_RGB);
+                            convertedImage.createGraphics().drawRenderedImage(image, null);
+                            ImageIO.write(convertedImage, "jpg", baos);
                         }
                         catch(Exception e)
                         {
