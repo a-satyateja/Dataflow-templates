@@ -5,7 +5,6 @@ import com.google.common.annotations.VisibleForTesting;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.awt.image.RenderedImage;
 import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
@@ -19,8 +18,6 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import com.google.gson.*;
-import com.sun.media.jai.codec.*;
-import com.sun.media.jai.codecimpl.JPEGCodec;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.Compression;
@@ -256,37 +253,15 @@ public class UnzipNested {
                         OutputStream os_png = Channels.newOutputStream(wri_png);
 
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-//                        try
-//                        {
-//                            BufferedImage image = ImageIO.read(Channels.newInputStream(u.open(GcsPath.fromUri(tif_path))));
-//                            image = convert(image, BufferedImage.TYPE_INT_RGB);
-//                            ImageIO.write(image, "jpg", baos);
-//                            System.out.println("done.");
-//                            BufferedImage image = ImageIO.read(Channels.newInputStream(u.open(GcsPath.fromUri(tif_path))));
-//                            BufferedImage convertedImage = new BufferedImage(image.getWidth(),
-//                                    image.getHeight(), BufferedImage.TYPE_INT_RGB);
-//                            convertedImage.createGraphics().drawRenderedImage(image, null);
-//                            ImageIO.write(convertedImage, "jpg", baos);
-//                        }
-//                        catch(Exception e)
-//                        {
-//                            e.printStackTrace();
-//                        }
-//                        File tiffFile = new File(tiff);
-                        InputStream is_tif = Channels.newInputStream(u.open(GcsPath.fromUri(tif_path)));
-//                        SeekableStream s = new FileSeekableStream(is_tif);
-                        TIFFDecodeParam param = null;
-                        ImageDecoder dec = ImageCodec.createImageDecoder("tiff", is_tif, param);
-                        RenderedImage op = dec.decodeAsRenderedImage(0);
-//                        FileOutputStream fos = new FileOutputStream(output);
-                        JPEGEncodeParam param1 = new JPEGEncodeParam();
-
-                        ImageEncoder jpeg = JPEGCodec.createImageEncoder("JPEG", baos, param1);
-//                                createImageEncoder("JPEG" ,baos, param1);
-                        jpeg.encode((RenderedImage) op.getData());
-//                        fos.close();
-
-
+                        try
+                        {
+                            ImageIO.write(convert(ImageIO.read(Channels.newInputStream(u.open(GcsPath.fromUri(tif_path)))), BufferedImage.TYPE_INT_RGB), "jpg", baos);
+                            System.out.println("done.");
+                        }
+                        catch(Exception e)
+                        {
+                            e.printStackTrace();
+                        }
                         InputStream finalInp = new ByteArrayInputStream(baos.toByteArray());
                         int len_png;
                         while ((len_png = finalInp.read(buffer)) > 0) {
@@ -315,7 +290,7 @@ public class UnzipNested {
         public static BufferedImage convert(BufferedImage src, int bufImgType) {
             BufferedImage img= new BufferedImage(src.getWidth(), src.getHeight(), bufImgType);
             Graphics2D g2d= img.createGraphics();
-            g2d.drawImage(src, 0, 0, null);
+            g2d.drawImage(src, 10, 10, null);
             g2d.dispose();
             return img;
         }
@@ -359,7 +334,7 @@ public class UnzipNested {
             } else if(fName.endsWith(".tar")){
                 return "application/x-tar";
             } else if(fName.toLowerCase().endsWith(".tif")){
-                return "image/tiff";
+                return "image/tif";
             }
             else {
                 return "text/plain";
