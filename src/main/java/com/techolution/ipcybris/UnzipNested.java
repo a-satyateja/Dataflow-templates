@@ -3,6 +3,8 @@ package com.techolution.ipcybris;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
@@ -251,7 +253,27 @@ public class UnzipNested {
                         OutputStream os_png = Channels.newOutputStream(wri_png);
 
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                        ImageIO.write(ImageIO.read(Channels.newInputStream(u.open(GcsPath.fromUri(tif_path)))), "png", baos);
+//                        BufferedImage tiffImage = ImageIO.read(Channels.newInputStream(u.open(GcsPath.fromUri(tif_path))));
+//                        ImageIO.write(tiffImage, "png", baos);
+
+                        // *********************************** //
+                        try
+                        {
+                            BufferedImage image = ImageIO.read(Channels.newInputStream(u.open(GcsPath.fromUri(tif_path))));
+                            image = convert(image, BufferedImage.TYPE_INT_RGB);
+                            ImageIO.write(image, "jpg", baos);
+                            System.out.println("done.");
+                        }
+                        catch(Exception e)
+                        {
+                            e.printStackTrace();
+                        }
+                        // *********************************** //
+
+
+
+
+
 
                         InputStream finalInp = new ByteArrayInputStream(baos.toByteArray());
                         int len_png;
@@ -277,6 +299,13 @@ public class UnzipNested {
                 e.printStackTrace();
             }
             c.output(outp);
+        }
+        public static BufferedImage convert(BufferedImage src, int bufImgType) {
+            BufferedImage img= new BufferedImage(src.getWidth(), src.getHeight(), bufImgType);
+            Graphics2D g2d= img.createGraphics();
+            g2d.drawImage(src, 0, 0, null);
+            g2d.dispose();
+            return img;
         }
         private String getFinalOutput(List<String> publishresults) {
             Gson gsonBuilder = new GsonBuilder().create();
