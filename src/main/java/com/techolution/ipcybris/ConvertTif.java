@@ -227,7 +227,7 @@ public class ConvertTif {
 
                 BufferedImage img2 = null;
                 BufferedImage inputImage = ImageIO.read(bis);
-                if(inputImage.toString()!=null) {
+                if(inputImage!=null) {
                     img2 = new BufferedImage(
                             inputImage.getWidth(),
                             inputImage.getHeight(),
