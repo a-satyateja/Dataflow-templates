@@ -225,12 +225,14 @@ public class ConvertTif {
                 is = Channels.newInputStream(sek);
                 BufferedInputStream bis = new BufferedInputStream(is);
 
+                BufferedImage img2 = null;
                 BufferedImage inputImage = ImageIO.read(bis);
-                BufferedImage img2 = new BufferedImage(
-                        inputImage.getWidth(),
-                        inputImage.getHeight(),
-                        BufferedImage.TYPE_INT_RGB);
-
+                if(inputImage.toString()!=null) {
+                    img2 = new BufferedImage(
+                            inputImage.getWidth(),
+                            inputImage.getHeight(),
+                            BufferedImage.TYPE_INT_RGB);
+                }
 
                 for (int y = 0; y < inputImage.getHeight(); y++) {
                     for (int x = 0; x < inputImage.getWidth(); x++) {
