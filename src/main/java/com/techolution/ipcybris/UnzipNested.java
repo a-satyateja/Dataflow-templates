@@ -3,6 +3,7 @@ package com.techolution.ipcybris;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import java.awt.image.BufferedImage;
 import java.awt.image.RenderedImage;
 import java.io.*;
 import java.nio.channels.Channels;
@@ -254,9 +255,20 @@ public class UnzipNested {
                         WritableByteChannel wri_png = u.create(GcsPath.fromUri(png_path), "image/png");
                         OutputStream os_png = Channels.newOutputStream(wri_png);
 
-                        RenderedImage inputImage = ImageIO.read(is_png);
+                        BufferedImage inputImage = ImageIO.read(is_png);
+                        BufferedImage img2 = new BufferedImage(
+                                inputImage.getWidth(),
+                                inputImage.getHeight(),
+                                BufferedImage.TYPE_INT_RGB);
+                        // Set the RGB values for converted image (jpg)
+                        for (int y = 0; y < inputImage.getHeight(); y++) {
+                            for (int x = 0; x < inputImage.getWidth(); x++) {
+                                img2.setRGB(x, y, inputImage.getRGB(x, y));
+                            }
+                        }
+
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                        ImageIO.write(inputImage, "png", baos);
+                        ImageIO.write(img2, "png", baos);
 
                         InputStream finalInp = new ByteArrayInputStream(baos.toByteArray());
                         int len_png;
