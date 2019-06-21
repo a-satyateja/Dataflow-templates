@@ -244,42 +244,6 @@ public class UnzipNested {
                     os.close();
                     filesUnzipped++;
                     publishresults.add(this.destinationLocation.get()+ze.getName());
-                    if (ze.getName().toUpperCase().contains(".TIF")) {
-                        // writes to the output image in specified format
-                        String tif_path = this.destinationLocation+ ze.getName();
-                        SeekableByteChannel sek_png = u.open(GcsPath.fromUri(tif_path));
-                        InputStream is_png;
-                        is_png = Channels.newInputStream(sek_png);
-
-                        String png_path = tif_path.replaceAll(".TIF", ".png");
-                        WritableByteChannel wri_png = u.create(GcsPath.fromUri(png_path), "image/png");
-                        OutputStream os_png = Channels.newOutputStream(wri_png);
-
-                        BufferedImage inputImage = ImageIO.read(is_png);
-                        BufferedImage img2 = new BufferedImage(
-                                inputImage.getWidth(),
-                                inputImage.getHeight(),
-                                BufferedImage.TYPE_INT_RGB);
-                        // Set the RGB values for converted image (jpg)
-                        for (int y = 0; y < inputImage.getHeight(); y++) {
-                            for (int x = 0; x < inputImage.getWidth(); x++) {
-                                img2.setRGB(x, y, inputImage.getRGB(x, y));
-                            }
-                        }
-
-                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                        ImageIO.write(img2, "png", baos);
-
-                        InputStream finalInp = new ByteArrayInputStream(baos.toByteArray());
-                        int len_png;
-                        while ((len_png = finalInp.read(buffer)) > 0) {
-                            os_png.write(buffer, 0, len_png);
-                        }
-                        os_png.close();
-                        finalInp.close();
-                        baos.close();
-                        u.remove(publishresults);
-                    }
                     ze=zis.getNextEntry();
                 }
                 outp = getFinalOutput(publishresults);
