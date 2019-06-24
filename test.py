@@ -51,9 +51,9 @@ class WordExtractingDoFn(beam.DoFn):
     saved = Image.open("q1.png")
     # outPath = gcsio_obj.open("gs://unzip-testing/test.png", "w", 16777216, "image/png")
     writer = filesystems.FileSystems.create("gs://unzip-testing/test.png")
-    with BytesIO() as output:
-      image.save(output, format="GIF")
-      contents = output.getvalue()
+    b = BytesIO()
+    image.save(b, format="png")
+    contents = b.getvalue()
     writer.write(contents)
     writer.close()
     # image.mode = 'I'
