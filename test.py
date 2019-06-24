@@ -44,17 +44,17 @@ class WordExtractingDoFn(beam.DoFn):
   def process(self, element):
     print("reads element ::")
     print(element)
-    head, tail = os.path.split(os.path.splitext(element)[0])
-    file_name = tail
+    head, file_name = os.path.split(os.path.splitext(element)[0])
     gcsio_obj = gcsio.GcsIO()
     bufferImg = gcsio_obj.open(element, 'r').read()
     image = Image.open(BytesIO(bufferImg))
-    writer = filesystems.FileSystems.create("gs://unzip-testing/" + file_name + ".png", "image/png")
+    writer = filesystems.FileSystems.create(head + "/" + file_name + ".png", "image/png")
     b = BytesIO()
     image.save(b, format="png")
     contents = b.getvalue()
     writer.write(contents)
     writer.close()
+    gcsio_obj.delete(element)
     b.close()
 
 def run(argv=None):
