@@ -20,6 +20,7 @@
 from __future__ import absolute_import
 import argparse
 import logging
+import os
 import re
 
 from past.builtins import unicode
@@ -41,24 +42,20 @@ from apache_beam.io import filesystems
 class WordExtractingDoFn(beam.DoFn):
 
   def process(self, element):
-    # readelement = ReadMatches(element)
     print("reads element ::")
     print(element)
+    head, tail = os.path.split(os.path.splitext(element)[0])
+    file_name = tail
     gcsio_obj = gcsio.GcsIO()
     bufferImg = gcsio_obj.open(element, 'r').read()
     image = Image.open(BytesIO(bufferImg))
-    # image.save('q1.png', "png")
-    saved = Image.open("q1.png")
-    # outPath = gcsio_obj.open("gs://unzip-testing/test.png", "w", 16777216, "image/png")
-    writer = filesystems.FileSystems.create("gs://unzip-testing/test.png")
+    writer = filesystems.FileSystems.create("gs://unzip-testing/" + file_name + ".png", "image/png")
     b = BytesIO()
     image.save(b, format="png")
     contents = b.getvalue()
     writer.write(contents)
     writer.close()
-    # image.mode = 'I'
-    # image.point(lambda i: i * (1. / 256)).convert('L').save('my.jpeg')
-    return 1
+    b.close()
 
 def run(argv=None):
   """Main entry point; defines and runs the wordcount pipeline."""
