@@ -16,9 +16,6 @@ import org.apache.beam.sdk.extensions.gcp.util.GcsUtil;
 import org.apache.beam.sdk.extensions.gcp.util.gcsfs.GcsPath;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.TupleTag;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.*;
@@ -30,8 +27,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 
 
@@ -94,7 +89,7 @@ import java.util.zip.ZipInputStream;
 public class ConvertTif {
 
     /** The logger to output status messages to. */
-    private static final Logger LOG = LoggerFactory.getLogger(UnzipNested.class);
+//    private static final Logger LOG = LoggerFactory.getLogger(UnzipNested.class);
 
     /**
      * A list of the {@link Compression} values excluding {@link Compression#AUTO} and {@link
