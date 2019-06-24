@@ -45,13 +45,13 @@ class WordExtractingDoFn(beam.DoFn):
     print("reads element ::")
     print(element)
     gcsio_obj = gcsio.GcsIO()
-    bufferImg = gcsio_obj.open(element, 'r').readlines()
+    bufferImg = gcsio_obj.open(element, 'r').read()
     image = Image.open(BytesIO(bufferImg))
-    saved = image.save('o.png', "png")
+    image.save('o.png', "png")
     # outPath = gcsio_obj.open("gs://unzip-testing/test.png", "w", 16777216, "image/png")
-    writer = filesystems.FileSystems.create("gs://unzip-testing/test.png")
-    writer.write(saved)
-    writer.close()
+    #writer = filesystems.FileSystems.create("gs://unzip-testing/test.png")
+    #writer.write(saved)
+    #writer.close()
     # image.mode = 'I'
     # image.point(lambda i: i * (1. / 256)).convert('L').save('my.jpeg')
     return 1
