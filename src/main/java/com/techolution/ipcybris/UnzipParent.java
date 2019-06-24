@@ -33,8 +33,8 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.extensions.gcp.util.GcsUtil;
 import org.apache.beam.sdk.extensions.gcp.util.gcsfs.GcsPath;
 import org.apache.beam.sdk.values.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+//import org.slf4j.Logger;
+//import org.slf4j.LoggerFactory;
 import org.apache.commons.io.FilenameUtils;
 
 /**
@@ -96,7 +96,7 @@ import org.apache.commons.io.FilenameUtils;
 public class UnzipParent {
 
     /** The logger to output status messages to. */
-    private static final Logger LOG = LoggerFactory.getLogger(UnzipParent.class);
+//    private static final Logger LOG = LoggerFactory.getLogger(UnzipParent.class);
 
     /**
      * A list of the {@link Compression} values excluding {@link Compression#AUTO} and {@link
@@ -220,7 +220,6 @@ public class UnzipParent {
                     ZipInputStream zis = new ZipInputStream(bis);
                     ZipEntry ze = zis.getNextEntry();
                     while(ze!=null){
-                        LoggerFactory.getLogger("unzip").info("Unzipping File {}",ze.getName());
                         WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ randomStr +"-unzip/"   + ze.getName()), getType(ze.getName()));
                         OutputStream os = Channels.newOutputStream(wri);
                         int len;
@@ -241,7 +240,6 @@ public class UnzipParent {
                     TarArchiveInputStream tis = new TarArchiveInputStream(bis);
                     TarArchiveEntry te = tis.getNextTarEntry();
                     while(te!=null){
-                        LoggerFactory.getLogger("unzip").info("Unzipping File {}",te.getName());
                         WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ randomStr + "-untar/" + te.getName()), getType(te.getName()));
                         OutputStream os = Channels.newOutputStream(wri);
                         int len;

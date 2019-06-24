@@ -35,9 +35,6 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.extensions.gcp.util.GcsUtil;
 import org.apache.beam.sdk.extensions.gcp.util.gcsfs.GcsPath;
 import org.apache.beam.sdk.values.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import javax.imageio.ImageIO;
 
 import static org.apache.beam.sdk.extensions.gcp.util.GcsUtil.*;
@@ -101,7 +98,7 @@ import static org.apache.beam.sdk.extensions.gcp.util.GcsUtil.*;
 public class UnzipNested {
 
     /** The logger to output status messages to. */
-    private static final Logger LOG = LoggerFactory.getLogger(UnzipNested.class);
+//    private static final Logger LOG = LoggerFactory.getLogger(UnzipNested.class);
 
     /**
      * A list of the {@link Compression} values excluding {@link Compression#AUTO} and {@link
@@ -234,7 +231,6 @@ public class UnzipNested {
                 ZipInputStream zis = new ZipInputStream(bis);
                 ZipEntry ze = zis.getNextEntry();
                 while(ze!=null){
-                    LoggerFactory.getLogger("unzip").info("Unzipping File {}",ze.getName());
                     WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ ze.getName()), getType(ze.getName()));
                     OutputStream os = Channels.newOutputStream(wri);
                     int len;
