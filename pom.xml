@@ -400,6 +400,17 @@
             <artifactId>beam-sdks-java-extensions-google-cloud-platform-core</artifactId>
             <version>2.13.0</version>
         </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.25</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+            <version>1.7.5</version>
+        </dependency>
 
     </dependencies>
 
@@ -516,29 +527,22 @@
                     <forceJavacCompilerUse>true</forceJavacCompilerUse>
                 </configuration>
                 <executions>
-                    <!-- Replacing default-compile as it is treated specially by maven -->
                     <execution>
-                        <id>default-compile</id>
+                        <id>java13</id>
                         <phase>none</phase>
-                    </execution>
-                    <!-- Replacing default-testCompile as it is treated specially by maven -->
-                    <execution>
-                        <id>default-testCompile</id>
-                        <phase>none</phase>
-                    </execution>
-                    <execution>
-                        <id>java-compile</id>
-                        <phase>compile</phase>
                         <goals>
                             <goal>compile</goal>
                         </goals>
-                    </execution>
-                    <execution>
-                        <id>java-test-compile</id>
-                        <phase>test-compile</phase>
-                        <goals>
-                            <goal>testCompile</goal>
-                        </goals>
+                        <configuration>
+                            <release>13</release>
+                            <jdkToolchain>
+                                <version>13</version>
+                            </jdkToolchain>
+                            <compileSourceRoots>
+                                <compileSourceRoot>${project.basedir}/src/main/java13</compileSourceRoot>
+                            </compileSourceRoots>
+                            <multiReleaseOutput>true</multiReleaseOutput>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
