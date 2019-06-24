@@ -41,12 +41,13 @@ class WordExtractingDoFn(beam.DoFn):
   def process(self, element):
     # readelement = ReadMatches(element)
     print("reads element ::")
-    bufferImg = gcsio.GcsIO.open(element, 'r')
+    print(element)
+    gcsio_obj = gcsio.GcsIO()
+    bufferImg = gcsio_obj.open(element, 'r')
     print(type(bufferImg.read()))
     image = Image.open(element)
     image.mode = 'I'
     image.point(lambda i: i * (1. / 256)).convert('L').save('my.jpeg')
-    print(element)
     return 1
 
 def run(argv=None):
@@ -81,7 +82,7 @@ def run(argv=None):
                         |'read' >> beam.Map(lambda x: x.metadata.path,
                                               ))
   print('*************************')
-  print(files)
+  # print(files)
   # print(files_and_contents)
 
   # Count the occurrences of each word.
