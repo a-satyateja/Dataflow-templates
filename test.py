@@ -34,6 +34,8 @@ from apache_beam.io.fileio import MatchFiles, ReadMatches, ReadableFile
 from apache_beam.metrics.metric import MetricsFilter
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.options.pipeline_options import SetupOptions
+from io import BytesIO
+from apache_beam.io import filesystems
 
 
 class WordExtractingDoFn(beam.DoFn):
@@ -43,11 +45,15 @@ class WordExtractingDoFn(beam.DoFn):
     print("reads element ::")
     print(element)
     gcsio_obj = gcsio.GcsIO()
-    bufferImg = gcsio_obj.open(element, 'r')
-    print(type(bufferImg.read()))
-    image = Image.open(element)
-    image.mode = 'I'
-    image.point(lambda i: i * (1. / 256)).convert('L').save('my.jpeg')
+    bufferImg = gcsio_obj.open(element, 'r').readlines()
+    image = Image.open(BytesIO(bufferImg))
+    saved = image.save('o.png', "png")
+    # outPath = gcsio_obj.open("gs://unzip-testing/test.png", "w", 16777216, "image/png")
+    writer = filesystems.FileSystems.create("gs://unzip-testing/test.png")
+    writer.write(saved)
+    writer.close()
+    # image.mode = 'I'
+    # image.point(lambda i: i * (1. / 256)).convert('L').save('my.jpeg')
     return 1
 
 def run(argv=None):
