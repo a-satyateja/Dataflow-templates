@@ -3,8 +3,6 @@ package com.techolution.ipcybris;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import java.awt.image.BufferedImage;
-import java.awt.image.RenderedImage;
 import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
@@ -32,12 +30,10 @@ import org.apache.beam.sdk.options.Validation.Required;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.ParDo;
-import org.apache.beam.sdk.extensions.gcp.util.GcsUtil;
-import org.apache.beam.sdk.extensions.gcp.util.gcsfs.GcsPath;
+import org.apache.beam.sdk.util.GcsUtil;
+import org.apache.beam.sdk.util.gcsfs.GcsPath;
 import org.apache.beam.sdk.values.*;
-import javax.imageio.ImageIO;
-
-import static org.apache.beam.sdk.extensions.gcp.util.GcsUtil.*;
+import static org.apache.beam.sdk.util.GcsUtil.*;
 
 /**
  * This pipeline unpacks(unzips) file(s) from Google Cloud Storage and re-uploads them to a destination
@@ -208,6 +204,7 @@ public class UnzipNested {
         private String outp = "NA";
         private List<String> publishresults= new ArrayList<>();
         private List<String> images=new ArrayList<>();
+        private List<String> imageUrls=new ArrayList<>();
         private List<String> xmls=new ArrayList<>();
         private List<String> others=new ArrayList<>();
 
@@ -268,15 +265,23 @@ public class UnzipNested {
                 }
             }
             images.forEach(e -> {
-                e.replaceAll("gs://", "https://storage.googleapis.com/");
+                String url_1 = e;
+                url_1=url_1.replaceAll(".TIF", ".png");
+                String[] words_1=url_1.split("/");
+                String url_2 = words_1[words_1.length-1];
+                String[] words_2 = url_2.split("-");
+                String url_3 = String.join("/", words_2);
+                String url_4 = "https://storage.googleapis.com/" + "ipweb-data/images/" + url_3;
+                imageUrls.add(url_4);
             });
+
             JsonObject pubsubout = new JsonObject();
             JsonArray othersArray = new JsonArray();
             JsonArray imagesArray = new JsonArray();
             JsonArray xmlsArray = new JsonArray();
 
-            if(!images.isEmpty()) {
-                imagesArray = jsonParser.parse(gsonBuilder.toJson(images)).getAsJsonArray();
+            if(!imageUrls.isEmpty()) {
+                imagesArray = jsonParser.parse(gsonBuilder.toJson(imageUrls)).getAsJsonArray();
             }
             if (!others.isEmpty()) {
                 othersArray = jsonParser.parse(gsonBuilder.toJson(others)).getAsJsonArray();

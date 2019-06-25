@@ -30,12 +30,12 @@ import org.apache.beam.sdk.options.Validation.Required;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.ParDo;
-import org.apache.beam.sdk.extensions.gcp.util.GcsUtil;
-import org.apache.beam.sdk.extensions.gcp.util.gcsfs.GcsPath;
-import org.apache.beam.sdk.values.*;
-//import org.slf4j.Logger;
-//import org.slf4j.LoggerFactory;
+import org.apache.beam.sdk.util.GcsUtil;
+import org.apache.beam.sdk.util.gcsfs.GcsPath;
+import org.apache.beam.sdk.values.KV;
+import org.apache.beam.sdk.values.TupleTag;
 import org.apache.commons.io.FilenameUtils;
+
 
 /**
  * This pipeline decompresses file(s) from Google Cloud Storage and re-uploads them to a destination
