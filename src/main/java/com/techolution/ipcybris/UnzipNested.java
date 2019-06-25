@@ -244,6 +244,7 @@ public class UnzipNested {
                 images.clear();
                 xmls.clear();
                 others.clear();
+                imageUrls.clear();
                 zis.closeEntry();
                 zis.close();
             }
