@@ -20,7 +20,6 @@ package com.techolution.ipcybris;
         import org.apache.beam.sdk.PipelineResult;
         import org.apache.beam.sdk.io.Compression;
         import org.apache.beam.sdk.io.FileIO;
-        import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
         import org.apache.beam.sdk.io.fs.MatchResult;
         import org.apache.beam.sdk.io.fs.ResourceId;
         import org.apache.beam.sdk.options.*;
@@ -137,11 +136,6 @@ public class ExtractPdfs {
 
         void setOutputDirectory(ValueProvider<String> value);
 
-        @Description("The name of the topic which data should be published to. "
-                + "The name should be in the format of projects/<project-id>/topics/<topic-name>.")
-        @Validation.Required
-        ValueProvider<String> getOutputTopic();
-        void setOutputTopic(ValueProvider<String> value);
     }
 
     /**
@@ -175,8 +169,7 @@ public class ExtractPdfs {
 
         // Run the pipeline over the work items.
         pipeline.apply("MatchFile(s)", FileIO.match().filepattern(options.getInputFilePattern()))
-                .apply("DecompressFile(s)", ParDo.of(new DecompressNew(options.getOutputDirectory())))
-                .apply("Write to PubSub", PubsubIO.writeStrings().to(options.getOutputTopic()));
+                .apply("DecompressFile(s)", ParDo.of(new DecompressNew(options.getOutputDirectory())));
 
         return pipeline.run();
     }
