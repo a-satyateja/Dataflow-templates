@@ -220,8 +220,8 @@ public class ExtractPdfs {
                             }
                             os.close();
                             filesUnzipped++;
-                            ze = zis.getNextEntry();
                         }
+                            ze = zis.getNextEntry();
                     }
                     zis.closeEntry();
                     zis.close();
@@ -245,8 +245,8 @@ public class ExtractPdfs {
                             }
                             os.close();
                             filesUnzipped++;
-                            te=tis.getNextTarEntry();
                         }
+                            te=tis.getNextTarEntry();
                     }
                     tis.close();
                 }
@@ -263,7 +263,7 @@ public class ExtractPdfs {
                 return "application/x-zip-compressed";
             } else if(fName.endsWith(".tar")){
                 return "application/x-tar";
-            } else if(fName.endsWith(".tar")){
+            } else if(fName.endsWith(".pdf")){
                 return "application/pdf";
             }
             else {
