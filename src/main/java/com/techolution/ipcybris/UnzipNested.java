@@ -204,7 +204,6 @@ public class UnzipNested {
         private String outp = "NA";
         private List<String> publishresults= new ArrayList<>();
         private List<String> images=new ArrayList<>();
-        private List<String> imageUrls=new ArrayList<>();
         private List<String> xmls=new ArrayList<>();
         private List<String> others=new ArrayList<>();
 
@@ -244,7 +243,6 @@ public class UnzipNested {
                 images.clear();
                 xmls.clear();
                 others.clear();
-                imageUrls.clear();
                 zis.closeEntry();
                 zis.close();
             }
@@ -265,24 +263,14 @@ public class UnzipNested {
                     others.add(path);
                 }
             }
-            images.forEach(e -> {
-                String url_1 = e;
-                url_1=url_1.replaceAll(".TIF", ".png");
-                String[] words_1=url_1.split("/");
-                String url_2 = words_1[words_1.length-1];
-                String[] words_2 = url_2.split("-");
-                String url_3 = String.join("/", words_2);
-                String url_4 = "https://storage.googleapis.com/" + "ipweb-data/images/" + url_3;
-                imageUrls.add(url_4);
-            });
 
             JsonObject pubsubout = new JsonObject();
             JsonArray othersArray = new JsonArray();
             JsonArray imagesArray = new JsonArray();
             JsonArray xmlsArray = new JsonArray();
 
-            if(!imageUrls.isEmpty()) {
-                imagesArray = jsonParser.parse(gsonBuilder.toJson(imageUrls)).getAsJsonArray();
+            if(!images.isEmpty()) {
+                imagesArray = jsonParser.parse(gsonBuilder.toJson(images)).getAsJsonArray();
             }
             if (!others.isEmpty()) {
                 othersArray = jsonParser.parse(gsonBuilder.toJson(others)).getAsJsonArray();
