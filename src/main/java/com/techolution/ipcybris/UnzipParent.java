@@ -258,9 +258,7 @@ public class UnzipParent {
                 e.printStackTrace();
             }
             JSONObject pubsubout = new JSONObject();
-            String[] split_fn = file_name.split("/");
-            String[] f_fn = split_fn[split_fn.length - 1].split(".");
-            pubsubout.put("parent-name", f_fn[0]);
+            pubsubout.put("parent-name", file_name);
             pubsubout.put("extraction-path", desPath);
             c.output(pubsubout.toString());
         }
