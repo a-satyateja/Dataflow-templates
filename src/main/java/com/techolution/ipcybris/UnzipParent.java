@@ -13,7 +13,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-
 import org.apache.beam.repackaged.beam_sdks_java_core.org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.beam.repackaged.beam_sdks_java_core.org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.beam.sdk.Pipeline;
@@ -35,6 +34,7 @@ import org.apache.beam.sdk.util.gcsfs.GcsPath;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.commons.io.FilenameUtils;
+import org.json.JSONObject;
 
 
 /**
@@ -208,19 +208,20 @@ public class UnzipParent {
             GcsUtil u = factory.create(c.getPipelineOptions());
             String desPath = "";
             String randomStr = getRandomString(10);
+            String file_name = p.toString();
             byte[] buffer = new byte[100000000];
             try{
                 SeekableByteChannel sek = u.open(GcsPath.fromUri(p.toString()));
                 String ext = FilenameUtils.getExtension(p.toString());
                 if (ext.equalsIgnoreCase("zip") ) {
-                    desPath = this.destinationLocation.get()+ randomStr +"-unzip/";
                     InputStream is;
                     is = Channels.newInputStream(sek);
                     BufferedInputStream bis = new BufferedInputStream(is);
                     ZipInputStream zis = new ZipInputStream(bis);
                     ZipEntry ze = zis.getNextEntry();
+                    desPath = this.destinationLocation.get()+ randomStr +"-unzip";
                     while(ze!=null){
-                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ randomStr +"-unzip/"   + ze.getName()), getType(ze.getName()));
+                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ randomStr +"-unzip"   + ze.getName()), getType(ze.getName()));
                         OutputStream os = Channels.newOutputStream(wri);
                         int len;
                         while((len=zis.read(buffer))>0){
@@ -233,14 +234,14 @@ public class UnzipParent {
                     zis.closeEntry();
                     zis.close();
                 } else if(ext.equalsIgnoreCase("tar")) {
-                    desPath = this.destinationLocation.get()+ randomStr + "-untar/";
                     InputStream is;
                     is = Channels.newInputStream(sek);
                     BufferedInputStream bis = new BufferedInputStream(is);
                     TarArchiveInputStream tis = new TarArchiveInputStream(bis);
                     TarArchiveEntry te = tis.getNextTarEntry();
+                    desPath = this.destinationLocation.get()+ randomStr + "-untar";
                     while(te!=null){
-                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ randomStr + "-untar/" + te.getName()), getType(te.getName()));
+                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ randomStr + "-untar" + te.getName()), getType(te.getName()));
                         OutputStream os = Channels.newOutputStream(wri);
                         int len;
                         while((len=tis.read(buffer))>0){
@@ -256,8 +257,11 @@ public class UnzipParent {
             catch(Exception e){
                 e.printStackTrace();
             }
-
-            c.output(desPath);
+            JSONObject pubsubout = new JSONObject();
+            String[] split_fn = file_name.split("/");
+            pubsubout.put("parent-name", split_fn[split_fn.length - 1]);
+            pubsubout.put("extraction-path", desPath);
+            c.output(pubsubout.toString());
         }
 
         private String getType(String fName){
