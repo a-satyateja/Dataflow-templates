@@ -4,12 +4,17 @@ package com.techolution.ipcybris;
 import com.google.common.annotations.VisibleForTesting;
 
 import java.io.*;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.ProtocolException;
+import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -33,6 +38,14 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.util.GcsUtil;
 import org.apache.beam.sdk.util.gcsfs.GcsPath;
 import org.apache.beam.sdk.values.*;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
 import static org.apache.beam.sdk.util.GcsUtil.*;
 
 /**
@@ -106,7 +119,9 @@ public class UnzipNested {
                     .filter(value -> value != Compression.AUTO && value != Compression.UNCOMPRESSED)
                     .collect(Collectors.toSet());
 
-    /** The error msg given when the pipeline matches a file but cannot determine the compression. */
+    /**
+     * The error msg given when the pipeline matches a file but cannot determine the compression.
+     */
     @VisibleForTesting
     static final String UNCOMPRESSED_ERROR_MSG =
             "Skipping file %s because it did not match any compression mode (%s)";
@@ -115,13 +130,19 @@ public class UnzipNested {
     static final String MALFORMED_ERROR_MSG =
             "The file resource %s is malformed or not in %s compressed format.";
 
-    /** The tag used to identify the main output of the {@link Decompress} DoFn. */
+    /**
+     * The tag used to identify the main output of the {@link Decompress} DoFn.
+     */
     @VisibleForTesting
-    static final TupleTag<String> DECOMPRESS_MAIN_OUT_TAG = new TupleTag<String>() {};
+    static final TupleTag<String> DECOMPRESS_MAIN_OUT_TAG = new TupleTag<String>() {
+    };
 
-    /** The tag used to identify the dead-letter sideOutput of the {@link Decompress} DoFn. */
+    /**
+     * The tag used to identify the dead-letter sideOutput of the {@link Decompress} DoFn.
+     */
     @VisibleForTesting
-    static final TupleTag<KV<String, String>> DEADLETTER_TAG = new TupleTag<KV<String, String>>() {};
+    static final TupleTag<KV<String, String>> DEADLETTER_TAG = new TupleTag<KV<String, String>>() {
+    };
 
     /**
      * The {@link Options} class provides the custom execution options passed by the executor at the
@@ -144,6 +165,7 @@ public class UnzipNested {
                 + "The name should be in the format of projects/<project-id>/topics/<topic-name>.")
         @Required
         ValueProvider<String> getOutputTopic();
+
         void setOutputTopic(ValueProvider<String> value);
     }
 
@@ -198,14 +220,14 @@ public class UnzipNested {
      * object back to a specified destination location.
      */
     @SuppressWarnings("serial")
-    public static class DecompressNew extends DoFn<MatchResult.Metadata,String>{
+    public static class DecompressNew extends DoFn<MatchResult.Metadata, String> {
         private static final long serialVersionUID = 2015166770614756341L;
-        private long filesUnzipped=0;
+        private long filesUnzipped = 0;
         private String outp = "NA";
-        private List<String> publishresults= new ArrayList<>();
-        private List<String> images=new ArrayList<>();
-        private List<String> xmls=new ArrayList<>();
-        private List<String> others=new ArrayList<>();
+        private List<String> publishresults = new ArrayList<>();
+        private List<String> images = new ArrayList<>();
+        private List<String> xmls = new ArrayList<>();
+        private List<String> others = new ArrayList<>();
 
         private final ValueProvider<String> destinationLocation;
 
@@ -214,47 +236,48 @@ public class UnzipNested {
         }
 
         @ProcessElement
-        public void processElement(ProcessContext c){
+        public void processElement(ProcessContext c) {
             ResourceId p = c.element().resourceId();
             GcsUtilFactory factory = new GcsUtilFactory();
             GcsUtil u = factory.create(c.getPipelineOptions());
             byte[] buffer = new byte[100000000];
-            try{
+            try {
                 SeekableByteChannel sek = u.open(GcsPath.fromUri(p.toString()));
                 InputStream is;
                 is = Channels.newInputStream(sek);
                 BufferedInputStream bis = new BufferedInputStream(is);
                 ZipInputStream zis = new ZipInputStream(bis);
                 ZipEntry ze = zis.getNextEntry();
-                while(ze!=null){
-                    WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ ze.getName()), getType(ze.getName()));
+                while (ze != null) {
+                    WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + ze.getName()), getType(ze.getName()));
                     OutputStream os = Channels.newOutputStream(wri);
                     int len;
-                    while((len=zis.read(buffer))>0){
-                        os.write(buffer,0,len);
+                    while ((len = zis.read(buffer)) > 0) {
+                        os.write(buffer, 0, len);
                     }
                     os.close();
                     filesUnzipped++;
-                    publishresults.add(this.destinationLocation.get()+ze.getName());
-                    ze=zis.getNextEntry();
+                    publishresults.add(this.destinationLocation.get() + ze.getName());
+                    ze = zis.getNextEntry();
                 }
                 outp = getFinalOutput(publishresults);
+                doPost(outp);
                 publishresults.clear();
                 images.clear();
                 xmls.clear();
                 others.clear();
                 zis.closeEntry();
                 zis.close();
-            }
-            catch(Exception e){
+            } catch (Exception e) {
                 e.printStackTrace();
             }
             c.output(outp);
         }
+
         private String getFinalOutput(List<String> publishresults) {
             Gson gsonBuilder = new GsonBuilder().create();
             JsonParser jsonParser = new JsonParser();
-            for (String path: publishresults){
+            for (String path : publishresults) {
                 if (path.toUpperCase().contains(".TIF")) {
                     images.add(path);
                 } else if (path.toUpperCase().contains(".XML")) {
@@ -269,31 +292,117 @@ public class UnzipNested {
             JsonArray imagesArray = new JsonArray();
             JsonArray xmlsArray = new JsonArray();
 
-            if(!images.isEmpty()) {
+            if (!images.isEmpty()) {
                 imagesArray = jsonParser.parse(gsonBuilder.toJson(images)).getAsJsonArray();
             }
             if (!others.isEmpty()) {
                 othersArray = jsonParser.parse(gsonBuilder.toJson(others)).getAsJsonArray();
             }
-            if(!xmls.isEmpty()) {
+            if (!xmls.isEmpty()) {
                 xmlsArray = jsonParser.parse(gsonBuilder.toJson(xmls)).getAsJsonArray();
             }
             pubsubout.add("images", imagesArray);
             pubsubout.add("xmls", xmlsArray);
             pubsubout.add("others", othersArray);
+
             return pubsubout.toString();
         }
-        private String getType(String fName){
-            if(fName.endsWith(".zip")){
+
+        private String getType(String fName) {
+            if (fName.endsWith(".zip")) {
                 return "application/x-zip-compressed";
-            } else if(fName.endsWith(".tar")){
+            } else if (fName.endsWith(".tar")) {
                 return "application/x-tar";
-            } else if(fName.toLowerCase().endsWith(".tif")){
+            } else if (fName.toLowerCase().endsWith(".tif")) {
                 return "image/tiff";
-            }
-            else {
+            } else {
                 return "text/plain";
             }
         }
+
+            public void doPost(String data) throws IOException {
+                URL obj = null;
+                try {
+                    obj = new URL("https://invokeconversion-dot-ipweb-240115.appspot.com/invokeconversion");
+                } catch (MalformedURLException ex) {
+                    ex.printStackTrace();
+                }
+                HttpURLConnection con = null;
+                try {
+                    con = (HttpURLConnection) obj.openConnection();
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+                try {
+                    con.setRequestMethod("POST");
+                    con.setRequestProperty("Content-Type", "application/json; utf-8");
+                } catch (ProtocolException ex) {
+                    ex.printStackTrace();
+                }
+                con.setDoOutput(true);
+                OutputStream os = null;
+                try {
+                    os = con.getOutputStream();
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+                try {
+                    os.write(data.getBytes("utf-8"));
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+                try {
+                    os.flush();
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+                try {
+                    os.close();
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+                // For POST only - END
+
+                int responseCode = 0;
+                try {
+                    responseCode = con.getResponseCode();
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+                System.out.println("POST Response Code :: " + responseCode);
+
+                if (responseCode == HttpURLConnection.HTTP_OK) { //success
+                    BufferedReader in = null;
+                    try {
+                        in = new BufferedReader(new InputStreamReader(
+                                con.getInputStream()));
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                    }
+                    String inputLine = null;
+                    StringBuffer response = new StringBuffer();
+
+                    while (true) {
+                        try {
+                            if (!((inputLine = in.readLine()) != null)) break;
+                        } catch (IOException ex) {
+                            ex.printStackTrace();
+                        }
+                        response.append(inputLine);
+                    }
+                    try {
+                        in.close();
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                    }
+
+                    // print result
+                    System.out.println(response.toString());
+                } else {
+                    System.out.println("POST request not worked");
+                }
+
+
+            }
     }
 }
