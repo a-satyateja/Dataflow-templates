@@ -280,10 +280,6 @@ public class UnzipNested {
             for (String path : publishresults) {
                 if (path.toUpperCase().contains(".TIF")) {
                     images.add(path);
-                } else if (path.toUpperCase().contains(".XML")) {
-                    xmls.add(path);
-                } else {
-                    others.add(path);
                 }
             }
 
