@@ -118,16 +118,10 @@ public class UnzipNested {
     static final String MALFORMED_ERROR_MSG =
             "The file resource %s is malformed or not in %s compressed format.";
 
-    /**
-     * The tag used to identify the main output of the {@link Decompress} DoFn.
-     */
     @VisibleForTesting
     static final TupleTag<String> DECOMPRESS_MAIN_OUT_TAG = new TupleTag<String>() {
     };
 
-    /**
-     * The tag used to identify the dead-letter sideOutput of the {@link Decompress} DoFn.
-     */
     @VisibleForTesting
     static final TupleTag<KV<String, String>> DEADLETTER_TAG = new TupleTag<KV<String, String>>() {
     };
@@ -157,14 +151,7 @@ public class UnzipNested {
         void setOutputTopic(ValueProvider<String> value);
     }
 
-    /**
-     * The main entry-point for pipeline execution. This method will start the pipeline but will not
-     * wait for it's execution to finish. If blocking execution is required, use the {@link
-     * BulkDecompressor#run(Options)} method to start the pipeline and invoke {@code
-     * result.waitUntilFinish()} on the {@link PipelineResult}.
-     *
-     * @param args The command-line args passed by the executor.
-     */
+
     public static void main(String[] args) {
 
         Options options = PipelineOptionsFactory.fromArgs(args).withValidation().as(Options.class);
