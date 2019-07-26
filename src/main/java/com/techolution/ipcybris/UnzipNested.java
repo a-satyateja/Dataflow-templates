@@ -4,17 +4,12 @@ package com.techolution.ipcybris;
 import com.google.common.annotations.VisibleForTesting;
 
 import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.ProtocolException;
-import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -38,13 +33,6 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.util.GcsUtil;
 import org.apache.beam.sdk.util.gcsfs.GcsPath;
 import org.apache.beam.sdk.values.*;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
-
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 
 import static org.apache.beam.sdk.util.GcsUtil.*;
 
@@ -248,20 +236,22 @@ public class UnzipNested {
                 BufferedInputStream bis = new BufferedInputStream(is);
                 ZipInputStream zis = new ZipInputStream(bis);
                 ZipEntry ze = zis.getNextEntry();
+                String entry_name = ze.getName();
                 while (ze != null) {
-                    WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + ze.getName()), getType(ze.getName()));
-                    OutputStream os = Channels.newOutputStream(wri);
-                    int len;
-                    while ((len = zis.read(buffer)) > 0) {
-                        os.write(buffer, 0, len);
+                    if (entry_name.toUpperCase().contains(".TIF")) {
+                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + ze.getName()), getType(ze.getName()));
+                        OutputStream os = Channels.newOutputStream(wri);
+                        int len;
+                        while ((len = zis.read(buffer)) > 0) {
+                            os.write(buffer, 0, len);
+                        }
+                        os.close();
+                        filesUnzipped++;
+                        publishresults.add(this.destinationLocation.get() + ze.getName());
                     }
-                    os.close();
-                    filesUnzipped++;
-                    publishresults.add(this.destinationLocation.get() + ze.getName());
                     ze = zis.getNextEntry();
                 }
                 outp = getFinalOutput(publishresults);
-                doPost(outp);
                 publishresults.clear();
                 images.clear();
                 xmls.clear();
@@ -315,90 +305,5 @@ public class UnzipNested {
                 return "text/plain";
             }
         }
-
-            public void doPost(String data) throws IOException {
-                URL obj = null;
-                try {
-                    obj = new URL("https://invokeconversion-dot-ipweb-240115.appspot.com/invokeconversion");
-                } catch (MalformedURLException ex) {
-                    ex.printStackTrace();
-                }
-                HttpURLConnection con = null;
-                try {
-                    con = (HttpURLConnection) obj.openConnection();
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                }
-                try {
-                    con.setRequestMethod("POST");
-                    con.setRequestProperty("Content-Type", "application/json; utf-8");
-                } catch (ProtocolException ex) {
-                    ex.printStackTrace();
-                }
-                con.setDoOutput(true);
-                OutputStream os = null;
-                try {
-                    os = con.getOutputStream();
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                }
-                try {
-                    os.write(data.getBytes("utf-8"));
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                }
-                try {
-                    os.flush();
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                }
-                try {
-                    os.close();
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                }
-                // For POST only - END
-
-                int responseCode = 0;
-                try {
-                    responseCode = con.getResponseCode();
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                }
-                System.out.println("POST Response Code :: " + responseCode);
-
-                if (responseCode == HttpURLConnection.HTTP_OK) { //success
-                    BufferedReader in = null;
-                    try {
-                        in = new BufferedReader(new InputStreamReader(
-                                con.getInputStream()));
-                    } catch (IOException ex) {
-                        ex.printStackTrace();
-                    }
-                    String inputLine = null;
-                    StringBuffer response = new StringBuffer();
-
-                    while (true) {
-                        try {
-                            if (!((inputLine = in.readLine()) != null)) break;
-                        } catch (IOException ex) {
-                            ex.printStackTrace();
-                        }
-                        response.append(inputLine);
-                    }
-                    try {
-                        in.close();
-                    } catch (IOException ex) {
-                        ex.printStackTrace();
-                    }
-
-                    // print result
-                    System.out.println(response.toString());
-                } else {
-                    System.out.println("POST request not worked");
-                }
-
-
-            }
     }
 }
