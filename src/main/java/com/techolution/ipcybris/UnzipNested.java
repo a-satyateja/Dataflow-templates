@@ -233,8 +233,8 @@ public class UnzipNested {
                 BufferedInputStream bis = new BufferedInputStream(is);
                 ZipInputStream zis = new ZipInputStream(bis);
                 ZipEntry ze = zis.getNextEntry();
-                String entry_name = ze.getName();
                 while (ze != null) {
+                    String entry_name = ze.getName();
                     if (entry_name.toUpperCase().contains(".TIF")) {
                         WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + ze.getName()), getType(ze.getName()));
                         OutputStream os = Channels.newOutputStream(wri);
