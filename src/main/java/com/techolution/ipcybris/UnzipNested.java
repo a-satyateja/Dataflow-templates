@@ -214,9 +214,6 @@ public class UnzipNested {
         private String outp = "NA";
         private List<String> publishresults = new ArrayList<>();
         private List<String> images = new ArrayList<>();
-        private List<String> xmls = new ArrayList<>();
-        private List<String> others = new ArrayList<>();
-
         private final ValueProvider<String> destinationLocation;
 
         DecompressNew(ValueProvider<String> destinationLocation) {
@@ -254,8 +251,6 @@ public class UnzipNested {
                 outp = getFinalOutput(publishresults);
                 publishresults.clear();
                 images.clear();
-                xmls.clear();
-                others.clear();
                 zis.closeEntry();
                 zis.close();
             } catch (Exception e) {
@@ -272,25 +267,12 @@ public class UnzipNested {
                     images.add(path);
                 }
             }
-
             JsonObject pubsubout = new JsonObject();
-            JsonArray othersArray = new JsonArray();
             JsonArray imagesArray = new JsonArray();
-            JsonArray xmlsArray = new JsonArray();
-
             if (!images.isEmpty()) {
                 imagesArray = jsonParser.parse(gsonBuilder.toJson(images)).getAsJsonArray();
             }
-            if (!others.isEmpty()) {
-                othersArray = jsonParser.parse(gsonBuilder.toJson(others)).getAsJsonArray();
-            }
-            if (!xmls.isEmpty()) {
-                xmlsArray = jsonParser.parse(gsonBuilder.toJson(xmls)).getAsJsonArray();
-            }
             pubsubout.add("images", imagesArray);
-            pubsubout.add("xmls", xmlsArray);
-            pubsubout.add("others", othersArray);
-
             return pubsubout.toString();
         }
 
