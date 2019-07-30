@@ -1,35 +1,36 @@
-
 package com.techolution.ipcybris;
 
-        import com.google.common.annotations.VisibleForTesting;
+import com.google.common.annotations.VisibleForTesting;
 
-        import java.io.*;
-        import java.nio.channels.Channels;
-        import java.nio.channels.SeekableByteChannel;
-        import java.nio.channels.WritableByteChannel;
-        import java.util.Random;
-        import java.util.Set;
-        import java.util.stream.Collectors;
-        import java.util.stream.Stream;
-        import java.util.zip.ZipEntry;
-        import java.util.zip.ZipInputStream;
+import java.io.*;
+import java.nio.channels.Channels;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.channels.WritableByteChannel;
+import java.util.Random;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
-        import org.apache.beam.repackaged.beam_sdks_java_core.org.apache.commons.compress.archivers.tar.TarArchiveEntry;
-        import org.apache.beam.repackaged.beam_sdks_java_core.org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-        import org.apache.beam.sdk.Pipeline;
-        import org.apache.beam.sdk.PipelineResult;
-        import org.apache.beam.sdk.io.Compression;
-        import org.apache.beam.sdk.io.FileIO;
-        import org.apache.beam.sdk.io.fs.MatchResult;
-        import org.apache.beam.sdk.io.fs.ResourceId;
-        import org.apache.beam.sdk.options.*;
-        import org.apache.beam.sdk.transforms.DoFn;
-        import org.apache.beam.sdk.transforms.ParDo;
-        import org.apache.beam.sdk.util.GcsUtil;
-        import org.apache.beam.sdk.util.gcsfs.GcsPath;
-        import org.apache.beam.sdk.values.KV;
-        import org.apache.beam.sdk.values.TupleTag;
-        import org.apache.commons.io.FilenameUtils;
+import org.apache.beam.repackaged.beam_sdks_java_core.org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.beam.repackaged.beam_sdks_java_core.org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.PipelineResult;
+import org.apache.beam.sdk.io.Compression;
+import org.apache.beam.sdk.io.FileIO;
+import org.apache.beam.sdk.io.fs.MatchResult;
+import org.apache.beam.sdk.io.fs.ResourceId;
+import org.apache.beam.sdk.options.*;
+import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.util.GcsUtil;
+import org.apache.beam.sdk.util.gcsfs.GcsPath;
+import org.apache.beam.sdk.values.KV;
+import org.apache.beam.sdk.values.TupleTag;
+import org.apache.commons.io.FilenameUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This pipeline decompresses file(s) from Google Cloud Storage and re-uploads them to a destination
@@ -181,6 +182,7 @@ public class ExtractPdfs {
     @SuppressWarnings("serial")
     public static class DecompressNew extends DoFn<MatchResult.Metadata,String> {
         private static final long serialVersionUID = 2015166770614756341L;
+        private static final Logger log=LoggerFactory.getLogger(ExtractPdfs.class);
         private long filesUnzipped=0;
 
         private final ValueProvider<String> destinationLocation;
@@ -201,6 +203,7 @@ public class ExtractPdfs {
                 SeekableByteChannel sek = u.open(GcsPath.fromUri(p.toString()));
                 String ext = FilenameUtils.getExtension(p.toString());
                 if (ext.equalsIgnoreCase("zip") ) {
+                    log.info("decompressing "+p.toString());
                     desPath = this.destinationLocation.get()+ randomStr +"-unzip/";
                     InputStream is;
                     is = Channels.newInputStream(sek);
@@ -209,23 +212,28 @@ public class ExtractPdfs {
                     ZipEntry ze = zis.getNextEntry();
                     while(ze!=null){
                         if(ze.getName().toLowerCase().contains(".pdf")) {
+                            log.info("extracting "+ze.getName());
                             String tn = ze.getName();
                             String[] tna = tn.split("/");
                             String pdf_name = tna[tna.length - 1];
                             WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + pdf_name), getType(ze.getName()));
+                            log.info("writing to GCS");
                             OutputStream os = Channels.newOutputStream(wri);
                             int len;
                             while ((len = zis.read(buffer)) > 0) {
                                 os.write(buffer, 0, len);
                             }
                             os.close();
+                            log.info("unzipped "+ze.getName());
                             filesUnzipped++;
+                            log.info("unzipped count"+filesUnzipped);
                         }
-                            ze = zis.getNextEntry();
+                        ze = zis.getNextEntry();
                     }
                     zis.closeEntry();
                     zis.close();
                 } else if(ext.equalsIgnoreCase("tar")) {
+                    log.info("decompressing "+p.toString());
                     desPath = this.destinationLocation.get()+ randomStr + "-untar/";
                     InputStream is;
                     is = Channels.newInputStream(sek);
@@ -234,25 +242,30 @@ public class ExtractPdfs {
                     TarArchiveEntry te = tis.getNextTarEntry();
                     while(te!=null){
                         if(te.getName().toLowerCase().contains(".pdf")) {
+                            log.info("extracting "+te.getName());
                             String tn = te.getName();
                             String[] tna = tn.split("/");
                             String pdf_name = tna[tna.length-1];
                             WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + pdf_name), getType(te.getName()));
+                            log.info("writing to GCS");
                             OutputStream os = Channels.newOutputStream(wri);
                             int len;
                             while((len=tis.read(buffer))>0){
                                 os.write(buffer,0,len);
                             }
                             os.close();
+                            log.info("unzipped "+te.getName());
                             filesUnzipped++;
+                            log.info("unzipped count "+filesUnzipped);
                         }
-                            te=tis.getNextTarEntry();
+                        te=tis.getNextTarEntry();
                     }
                     tis.close();
                 }
             }
             catch(Exception e){
                 e.printStackTrace();
+                log.error("Error:",e);
             }
 
             c.output(desPath);
