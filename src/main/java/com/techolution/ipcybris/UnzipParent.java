@@ -121,7 +121,6 @@ public class UnzipParent {
     @VisibleForTesting
     static final TupleTag<String> DECOMPRESS_MAIN_OUT_TAG = new TupleTag<String>() {};
 
-    /** The tag used to identify the dead-letter sideOutput of the {@link Decompress} DoFn. */
     @VisibleForTesting
     static final TupleTag<KV<String, String>> DEADLETTER_TAG = new TupleTag<KV<String, String>>() {};
 
@@ -180,7 +179,7 @@ public class UnzipParent {
 
         // Run the pipeline over the work items.
         pipeline.apply("MatchFile(s)", FileIO.match().filepattern(options.getInputFilePattern()))
-                .apply("DecompressFile(s)", ParDo.of(new DecompressNew(options.getOutputDirectory())))
+                .apply("DecompressFile(s)", ParDo.of(new DecompressNew(options.getOutputDirectory(), options.getInputFilePattern())))
                 .apply("Write to PubSub", PubsubIO.writeStrings().to(options.getOutputTopic()));
 
         return pipeline.run();
@@ -194,11 +193,12 @@ public class UnzipParent {
     public static class DecompressNew extends DoFn<MatchResult.Metadata,String>{
         private static final long serialVersionUID = 2015166770614756341L;
         private long filesUnzipped=0;
-
         private final ValueProvider<String> destinationLocation;
+        private final ValueProvider<String> inputFilePattern;
 
-        DecompressNew(ValueProvider<String> destinationLocation) {
+        DecompressNew(ValueProvider<String> destinationLocation, ValueProvider<String> inputFilePattern) {
             this.destinationLocation = destinationLocation;
+            this.inputFilePattern = inputFilePattern;
         }
 
         @ProcessElement
@@ -257,8 +257,12 @@ public class UnzipParent {
             catch(Exception e){
                 e.printStackTrace();
             }
+            String input_file_pattern = this.inputFilePattern.get();
+            String[] split_pattern = input_file_pattern.split("/");
+            String filename = split_pattern[split_pattern.length - 1];
+            String input_name = FilenameUtils.getBaseName(filename).toLowerCase();
             JSONObject pubsubout = new JSONObject();
-            pubsubout.put("parent-name", file_name);
+            pubsubout.put("parent-name", input_name);
             pubsubout.put("extraction-path", desPath);
             c.output(pubsubout.toString());
         }
