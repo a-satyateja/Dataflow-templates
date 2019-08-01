@@ -148,14 +148,7 @@ public class UnzipParent {
         void setOutputTopic(ValueProvider<String> value);
     }
 
-    /**
-     * The main entry-point for pipeline execution. This method will start the pipeline but will not
-     * wait for it's execution to finish. If blocking execution is required, use the {@link
-     * BulkDecompressor#run(Options)} method to start the pipeline and invoke {@code
-     * result.waitUntilFinish()} on the {@link PipelineResult}.
-     *
-     * @param args The command-line args passed by the executor.
-     */
+
     public static void main(String[] args) {
 
         Options options = PipelineOptionsFactory.fromArgs(args).withValidation().as(Options.class);
@@ -222,12 +215,15 @@ public class UnzipParent {
                     desPath = this.destinationLocation.get()+ randomStr +"-unzip";
                     while(ze!=null){
                         WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ randomStr +"-unzip"   + ze.getName()), getType(ze.getName()));
-                        OutputStream os = Channels.newOutputStream(wri);
-                        int len;
-                        while((len=zis.read(buffer))>0){
-                            os.write(buffer,0,len);
+                        if (wri.isOpen()) {
+                            OutputStream os = Channels.newOutputStream(wri);
+                            int len;
+                            while((len=zis.read(buffer))>0){
+                                os.write(buffer,0,len);
+                            }
+                            os.close();
+                            wri.close();
                         }
-                        os.close();
                         filesUnzipped++;
                         ze=zis.getNextEntry();
                     }
@@ -242,12 +238,15 @@ public class UnzipParent {
                     desPath = this.destinationLocation.get()+ randomStr + "-untar";
                     while(te!=null){
                         WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ randomStr + "-untar" + te.getName()), getType(te.getName()));
-                        OutputStream os = Channels.newOutputStream(wri);
-                        int len;
-                        while((len=tis.read(buffer))>0){
-                            os.write(buffer,0,len);
+                        if (wri.isOpen()) {
+                            OutputStream os = Channels.newOutputStream(wri);
+                            int len;
+                            while((len=tis.read(buffer))>0){
+                                os.write(buffer,0,len);
+                            }
+                            os.close();
+                            wri.close();
                         }
-                        os.close();
                         filesUnzipped++;
                         te=tis.getNextTarEntry();
                     }
