@@ -221,8 +221,11 @@ public class UnzipParent {
                             while((len=zis.read(buffer))>0){
                                 os.write(buffer,0,len);
                             }
+                            os.flush();
                             os.close();
                             wri.close();
+                        } else {
+                            break;
                         }
                         filesUnzipped++;
                         ze=zis.getNextEntry();
@@ -244,8 +247,11 @@ public class UnzipParent {
                             while((len=tis.read(buffer))>0){
                                 os.write(buffer,0,len);
                             }
+                            os.flush();
                             os.close();
                             wri.close();
+                        } else {
+                            break;
                         }
                         filesUnzipped++;
                         te=tis.getNextTarEntry();
