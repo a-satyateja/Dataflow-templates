@@ -1,18 +1,22 @@
 
 package com.techolution.ipcybris;
 
+import com.google.api.core.ApiFutureCallback;
+import com.google.api.gax.rpc.ApiException;
 import com.google.common.annotations.VisibleForTesting;
 
 import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.channels.WritableByteChannel;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+
+import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.beam.repackaged.beam_sdks_java_core.org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.beam.repackaged.beam_sdks_java_core.org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.beam.sdk.Pipeline;
@@ -35,7 +39,15 @@ import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.commons.io.FilenameUtils;
 import org.json.JSONObject;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.google.api.core.ApiFuture;
+import com.google.api.core.ApiFutures;
+import com.google.cloud.ServiceOptions;
+import com.google.cloud.pubsub.v1.Publisher;
+import com.google.protobuf.ByteString;
+import com.google.pubsub.v1.ProjectTopicName;
+import com.google.pubsub.v1.PubsubMessage;
 
 /**
  * This pipeline decompresses file(s) from Google Cloud Storage and re-uploads them to a destination
@@ -108,7 +120,9 @@ public class UnzipParent {
                     .filter(value -> value != Compression.AUTO && value != Compression.UNCOMPRESSED)
                     .collect(Collectors.toSet());
 
-    /** The error msg given when the pipeline matches a file but cannot determine the compression. */
+    /**
+     * The error msg given when the pipeline matches a file but cannot determine the compression.
+     */
     @VisibleForTesting
     static final String UNCOMPRESSED_ERROR_MSG =
             "Skipping file %s because it did not match any compression mode (%s)";
@@ -117,12 +131,16 @@ public class UnzipParent {
     static final String MALFORMED_ERROR_MSG =
             "The file resource %s is malformed or not in %s compressed format.";
 
-    /** The tag used to identify the main output of the {@link Decompress} DoFn. */
+    /**
+     * The tag used to identify the main output of the {@link Decompress} DoFn.
+     */
     @VisibleForTesting
-    static final TupleTag<String> DECOMPRESS_MAIN_OUT_TAG = new TupleTag<String>() {};
+    static final TupleTag<String> DECOMPRESS_MAIN_OUT_TAG = new TupleTag<String>() {
+    };
 
     @VisibleForTesting
-    static final TupleTag<KV<String, String>> DEADLETTER_TAG = new TupleTag<KV<String, String>>() {};
+    static final TupleTag<KV<String, String>> DEADLETTER_TAG = new TupleTag<KV<String, String>>() {
+    };
 
     /**
      * The {@link Options} class provides the custom execution options passed by the executor at the
@@ -145,10 +163,18 @@ public class UnzipParent {
                 + "The name should be in the format of projects/<project-id>/topics/<topic-name>.")
         @Required
         ValueProvider<String> getOutputTopic();
+
         void setOutputTopic(ValueProvider<String> value);
     }
 
-
+    /**
+     * The main entry-point for pipeline execution. This method will start the pipeline but will not
+     * wait for it's execution to finish. If blocking execution is required, use the {@link
+     * BulkDecompressor#run(Options)} method to start the pipeline and invoke {@code
+     * result.waitUntilFinish()} on the {@link PipelineResult}.
+     *
+     * @param args The command-line args passed by the executor.
+     */
     public static void main(String[] args) {
 
         Options options = PipelineOptionsFactory.fromArgs(args).withValidation().as(Options.class);
@@ -183,9 +209,10 @@ public class UnzipParent {
      * object back to a specified destination location.
      */
     @SuppressWarnings("serial")
-    public static class DecompressNew extends DoFn<MatchResult.Metadata,String>{
+    public static class DecompressNew extends DoFn<MatchResult.Metadata, String> {
         private static final long serialVersionUID = 2015166770614756341L;
-        private long filesUnzipped=0;
+        private long filesUnzipped = 0;
+        private static final Logger log = LoggerFactory.getLogger(UnzipParent.class);
         private final ValueProvider<String> destinationLocation;
         private final ValueProvider<String> inputFilePattern;
 
@@ -195,7 +222,7 @@ public class UnzipParent {
         }
 
         @ProcessElement
-        public void processElement(ProcessContext c){
+        public void processElement(ProcessContext c) throws InterruptedException {
             ResourceId p = c.element().resourceId();
             GcsUtil.GcsUtilFactory factory = new GcsUtil.GcsUtilFactory();
             GcsUtil u = factory.create(c.getPipelineOptions());
@@ -203,64 +230,161 @@ public class UnzipParent {
             String randomStr = getRandomString(10);
             String file_name = p.toString();
             byte[] buffer = new byte[100000000];
-            try{
+            ProjectTopicName topicName = ProjectTopicName.of("ipweb-240115", "parent-test");
+            Publisher publisher = null;
+
+
+            try {
                 SeekableByteChannel sek = u.open(GcsPath.fromUri(p.toString()));
                 String ext = FilenameUtils.getExtension(p.toString());
-                if (ext.equalsIgnoreCase("zip") ) {
+                if (ext.equalsIgnoreCase("zip")) {
                     InputStream is;
                     is = Channels.newInputStream(sek);
                     BufferedInputStream bis = new BufferedInputStream(is);
                     ZipInputStream zis = new ZipInputStream(bis);
                     ZipEntry ze = zis.getNextEntry();
-                    desPath = this.destinationLocation.get()+ randomStr +"-unzip";
-                    while(ze!=null){
-                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ randomStr +"-unzip"   + ze.getName()), getType(ze.getName()));
-                        if (wri.isOpen()) {
+                    desPath = this.destinationLocation.get() + randomStr + "-unzip";
+                    while (ze != null) {
+                        String ze_name = ze.getName();
+                        try {
+                            log.info("extracting :", ze_name);
+                            WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + randomStr + "-unzip" + ze_name), getType(ze_name));
                             OutputStream os = Channels.newOutputStream(wri);
                             int len;
-                            while((len=zis.read(buffer))>0){
-                                os.write(buffer,0,len);
+                            while ((len = zis.read(buffer)) > 0) {
+                                os.write(buffer, 0, len);
                             }
-                            os.flush();
                             os.close();
-                            wri.close();
-                        } else {
-                            break;
+                            log.info("extraction success : ", ze_name);
+                            filesUnzipped++;
+                            log.info("unzipped count" + filesUnzipped);
+                        } catch (Exception e) {
+                            log.error(e.getMessage());
+                            String error_message = e.getMessage();
+                            try {
+                                // Create a publisher instance with default settings bound to the topic
+                                publisher = Publisher.newBuilder(topicName).build();
+
+//                                List<String> messages = Arrays.asList("first message", "second message");
+
+                                ByteString data = ByteString.copyFromUtf8(error_message);
+                                PubsubMessage pubsubMessage = PubsubMessage.newBuilder().setData(data).build();
+
+                                // Once published, returns a server-assigned message id (unique within the topic)
+                                ApiFuture<String> future = publisher.publish(pubsubMessage);
+
+                                // Add an asynchronous callback to handle success / failure
+                                ApiFutures.addCallback(
+                                        future,
+                                        new ApiFutureCallback<String>() {
+
+                                            @Override
+                                            public void onFailure(Throwable throwable) {
+                                                if (throwable instanceof ApiException) {
+                                                    ApiException apiException = ((ApiException) throwable);
+                                                    // details on the API exception
+                                                    log.error(String.valueOf(apiException.getStatusCode().getCode()));
+                                                    log.error(String.valueOf(apiException.isRetryable()));
+                                                }
+                                                log.error("Error publishing message : " + error_message);
+                                            }
+
+                                            @Override
+                                            public void onSuccess(String messageId) {
+                                                // Once published, returns server-assigned message ids (unique within the topic)
+                                                log.error(messageId);
+                                            }
+                                        },
+                                        MoreExecutors.directExecutor());
+
+                            } catch (IOException er) {
+                                log.error("Error publishing message : ", er);
+                            } finally {
+                                if (publisher != null) {
+                                    // When finished with the publisher, shutdown to free up resources.
+                                    publisher.shutdown();
+                                    publisher.awaitTermination(1, TimeUnit.MINUTES);
+                                }
+                            }
                         }
-                        filesUnzipped++;
-                        ze=zis.getNextEntry();
+                        ze = zis.getNextEntry();
                     }
                     zis.closeEntry();
                     zis.close();
-                } else if(ext.equalsIgnoreCase("tar")) {
+                } else if (ext.equalsIgnoreCase("tar")) {
                     InputStream is;
                     is = Channels.newInputStream(sek);
                     BufferedInputStream bis = new BufferedInputStream(is);
                     TarArchiveInputStream tis = new TarArchiveInputStream(bis);
                     TarArchiveEntry te = tis.getNextTarEntry();
-                    desPath = this.destinationLocation.get()+ randomStr + "-untar";
-                    while(te!=null){
-                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get()+ randomStr + "-untar" + te.getName()), getType(te.getName()));
-                        if (wri.isOpen()) {
+                    desPath = this.destinationLocation.get() + randomStr + "-untar";
+                    while (te != null) {
+                        String te_name = te.getName();
+                        try {
+                            log.info("extracting :", te_name);
+                            WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + randomStr + "-unzip" + te_name), getType(te_name));
                             OutputStream os = Channels.newOutputStream(wri);
                             int len;
-                            while((len=tis.read(buffer))>0){
-                                os.write(buffer,0,len);
+                            while ((len = tis.read(buffer)) > 0) {
+                                os.write(buffer, 0, len);
                             }
-                            os.flush();
                             os.close();
-                            wri.close();
-                        } else {
-                            break;
+                            log.info("extraction success : ", te_name);
+                            filesUnzipped++;
+                            log.info("unzipped count" + filesUnzipped);
+                        } catch (Exception e) {
+                            log.error(e.getMessage());
+                            String error_message = e.getMessage();
+                            try {
+                                // Create a publisher instance with default settings bound to the topic
+                                publisher = Publisher.newBuilder(topicName).build();
+                                ByteString data = ByteString.copyFromUtf8(error_message);
+                                PubsubMessage pubsubMessage = PubsubMessage.newBuilder().setData(data).build();
+
+                                // Once published, returns a server-assigned message id (unique within the topic)
+                                ApiFuture<String> future = publisher.publish(pubsubMessage);
+
+                                // Add an asynchronous callback to handle success / failure
+                                ApiFutures.addCallback(
+                                        future,
+                                        new ApiFutureCallback<String>() {
+
+                                            @Override
+                                            public void onFailure(Throwable throwable) {
+                                                if (throwable instanceof ApiException) {
+                                                    ApiException apiException = ((ApiException) throwable);
+                                                    // details on the API exception
+                                                    log.error(String.valueOf(apiException.getStatusCode().getCode()));
+                                                    log.error(String.valueOf(apiException.isRetryable()));
+                                                }
+                                                log.error("Error publishing message : " + error_message);
+                                            }
+
+                                            @Override
+                                            public void onSuccess(String messageId) {
+                                                // Once published, returns server-assigned message ids (unique within the topic)
+                                                log.error(messageId);
+                                            }
+                                        },
+                                        MoreExecutors.directExecutor());
+
+                            } catch (IOException er) {
+                                log.error("Error publishing message : ", er);
+                            } finally {
+                                if (publisher != null) {
+                                    // When finished with the publisher, shutdown to free up resources.
+                                    publisher.shutdown();
+                                    publisher.awaitTermination(1, TimeUnit.MINUTES);
+                                }
+                            }
                         }
-                        filesUnzipped++;
-                        te=tis.getNextTarEntry();
+                        te = tis.getNextTarEntry();
                     }
                     tis.close();
                 }
-            }
-            catch(Exception e){
+            } catch (Exception e) {
                 e.printStackTrace();
+                log.error(e.getMessage());
             }
             String input_file_pattern = this.inputFilePattern.get();
             String[] split_pattern = input_file_pattern.split("/");
@@ -272,13 +396,12 @@ public class UnzipParent {
             c.output(pubsubout.toString());
         }
 
-        private String getType(String fName){
-            if(fName.endsWith(".zip")){
+        private String getType(String fName) {
+            if (fName.endsWith(".zip")) {
                 return "application/x-zip-compressed";
-            } else if(fName.endsWith(".tar")){
+            } else if (fName.endsWith(".tar")) {
                 return "application/x-tar";
-            }
-            else {
+            } else {
                 return "text/plain";
             }
         }
