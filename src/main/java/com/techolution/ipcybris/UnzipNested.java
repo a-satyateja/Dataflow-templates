@@ -1,6 +1,11 @@
 
 package com.techolution.ipcybris;
 
+import com.google.api.core.ApiFuture;
+import com.google.api.core.ApiFutureCallback;
+import com.google.api.core.ApiFutures;
+import com.google.api.gax.rpc.ApiException;
+import com.google.cloud.pubsub.v1.Publisher;
 import com.google.common.annotations.VisibleForTesting;
 
 import java.io.*;
@@ -10,12 +15,16 @@ import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.gson.*;
+import com.google.protobuf.ByteString;
+import com.google.pubsub.v1.PubsubMessage;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.Compression;
@@ -33,8 +42,13 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.util.GcsUtil;
 import org.apache.beam.sdk.util.gcsfs.GcsPath;
 import org.apache.beam.sdk.values.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.beam.sdk.util.GcsUtil.*;
+
+import com.google.pubsub.v1.ProjectTopicName;
+
 
 /**
  * This pipeline unpacks(unzips) file(s) from Google Cloud Storage and re-uploads them to a destination
@@ -200,6 +214,7 @@ public class UnzipNested {
         private long filesUnzipped = 0;
         private String outp = "NA";
         private List<String> publishresults = new ArrayList<>();
+        private static final Logger log = LoggerFactory.getLogger(UnzipNested.class);
         private List<String> images = new ArrayList<>();
         private final ValueProvider<String> destinationLocation;
 
@@ -213,6 +228,8 @@ public class UnzipNested {
             GcsUtilFactory factory = new GcsUtilFactory();
             GcsUtil u = factory.create(c.getPipelineOptions());
             byte[] buffer = new byte[100000000];
+            ProjectTopicName topicName = ProjectTopicName.of("ipweb-240115", "parent-test");
+            Publisher publisher = null;
             try {
                 SeekableByteChannel sek = u.open(GcsPath.fromUri(p.toString()));
                 InputStream is;
@@ -223,15 +240,70 @@ public class UnzipNested {
                 while (ze != null) {
                     String entry_name = ze.getName();
                     if (entry_name.toUpperCase().contains(".TIF")) {
-                        WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + ze.getName()), getType(ze.getName()));
-                        OutputStream os = Channels.newOutputStream(wri);
-                        int len;
-                        while ((len = zis.read(buffer)) > 0) {
-                            os.write(buffer, 0, len);
+                        try {
+                            log.info("extracting :", entry_name);
+                            WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + entry_name), getType(entry_name));
+                            OutputStream os = Channels.newOutputStream(wri);
+                            int len;
+                            while ((len = zis.read(buffer)) > 0) {
+                                os.write(buffer, 0, len);
+                            }
+                            os.close();
+                            log.info("extraction success : ", entry_name);
+                            filesUnzipped++;
+                            log.info("unzipped count" + filesUnzipped);
+                            publishresults.add(this.destinationLocation.get() + entry_name);
                         }
-                        os.close();
-                        filesUnzipped++;
-                        publishresults.add(this.destinationLocation.get() + ze.getName());
+                        catch (Exception e) {
+                            log.error(e.getMessage());
+                            String error_message = e.getMessage();
+                            try {
+                                // Create a publisher instance with default settings bound to the topic
+                                publisher = Publisher.newBuilder(topicName).build();
+
+                                //List<String> messages = Arrays.asList("first message", "second message");
+
+                                ByteString data = ByteString.copyFromUtf8(error_message);
+                                PubsubMessage pubsubMessage = PubsubMessage.newBuilder().setData(data).build();
+
+                                // Once published, returns a server-assigned message id (unique within the topic)
+                                ApiFuture<String> future = publisher.publish(pubsubMessage);
+
+                                // Add an asynchronous callback to handle success / failure
+                                ApiFutures.addCallback(
+                                        future,
+                                        new ApiFutureCallback<String>() {
+
+                                            @Override
+                                            public void onFailure(Throwable throwable) {
+                                                if (throwable instanceof ApiException) {
+                                                    ApiException apiException = ((ApiException) throwable);
+                                                    // details on the API exception
+                                                    log.error(String.valueOf(apiException.getStatusCode().getCode()));
+                                                    log.error(String.valueOf(apiException.isRetryable()));
+                                                }
+                                                log.error("Error publishing message : " + error_message);
+                                            }
+
+                                            @Override
+                                            public void onSuccess(String messageId) {
+                                                // Once published, returns server-assigned message ids (unique within the topic)
+                                                log.error(messageId);
+                                            }
+                                        },
+                                        MoreExecutors.directExecutor());
+
+                            } catch (IOException er) {
+                                log.error("Error publishing message : ", er);
+                            } finally {
+                                if (publisher != null) {
+                                    // When finished with the publisher, shutdown to free up resources.
+                                    publisher.shutdown();
+                                    publisher.awaitTermination(1, TimeUnit.MINUTES);
+                                }
+                            }
+                        }
+
                     }
                     ze = zis.getNextEntry();
                 }
@@ -241,7 +313,7 @@ public class UnzipNested {
                 zis.closeEntry();
                 zis.close();
             } catch (Exception e) {
-                e.printStackTrace();
+                log.error("error encountered", e);
             }
             c.output(outp);
         }
