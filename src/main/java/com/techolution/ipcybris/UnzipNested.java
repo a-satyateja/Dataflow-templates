@@ -42,12 +42,11 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.util.GcsUtil;
 import org.apache.beam.sdk.util.gcsfs.GcsPath;
 import org.apache.beam.sdk.values.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import static org.apache.beam.sdk.util.GcsUtil.*;
 
 import com.google.pubsub.v1.ProjectTopicName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
