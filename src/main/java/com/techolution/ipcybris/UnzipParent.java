@@ -167,14 +167,6 @@ public class UnzipParent {
         void setOutputTopic(ValueProvider<String> value);
     }
 
-    /**
-     * The main entry-point for pipeline execution. This method will start the pipeline but will not
-     * wait for it's execution to finish. If blocking execution is required, use the {@link
-     * BulkDecompressor#run(Options)} method to start the pipeline and invoke {@code
-     * result.waitUntilFinish()} on the {@link PipelineResult}.
-     *
-     * @param args The command-line args passed by the executor.
-     */
     public static void main(String[] args) {
 
         Options options = PipelineOptionsFactory.fromArgs(args).withValidation().as(Options.class);
@@ -247,7 +239,7 @@ public class UnzipParent {
                     while (ze != null) {
                         String ze_name = ze.getName();
                         try {
-                            log.info("extracting :", ze_name);
+                            log.info("extracting :" + ze_name);
                             WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + randomStr + "-unzip" + ze_name), getType(ze_name));
                             OutputStream os = Channels.newOutputStream(wri);
                             int len;
@@ -255,8 +247,6 @@ public class UnzipParent {
                                 os.write(buffer, 0, len);
                             }
                             os.close();
-                            log.info("extraction success : ", ze_name);
-                            filesUnzipped++;
                             log.info("unzipped count" + filesUnzipped);
                         } catch (Exception e) {
                             log.error(e.getMessage());
@@ -309,6 +299,8 @@ public class UnzipParent {
                         }
                         ze = zis.getNextEntry();
                     }
+                    filesUnzipped++;
+                    log.info("unzipped count" + filesUnzipped);
                     zis.closeEntry();
                     zis.close();
                 } else if (ext.equalsIgnoreCase("tar")) {
@@ -321,7 +313,7 @@ public class UnzipParent {
                     while (te != null) {
                         String te_name = te.getName();
                         try {
-                            log.info("extracting :", te_name);
+                            log.info("extracting :"+ te_name);
                             WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + randomStr + "-unzip" + te_name), getType(te_name));
                             OutputStream os = Channels.newOutputStream(wri);
                             int len;
@@ -329,7 +321,7 @@ public class UnzipParent {
                                 os.write(buffer, 0, len);
                             }
                             os.close();
-                            log.info("extraction success : ", te_name);
+                            log.info("extraction success : "+ te_name);
                             filesUnzipped++;
                             log.info("unzipped count" + filesUnzipped);
                         } catch (Exception e) {
@@ -369,7 +361,7 @@ public class UnzipParent {
                                         MoreExecutors.directExecutor());
 
                             } catch (IOException er) {
-                                log.error("Error publishing message : ", er);
+                                log.error("Error publishing message : "+ er);
                             } finally {
                                 if (publisher != null) {
                                     // When finished with the publisher, shutdown to free up resources.
