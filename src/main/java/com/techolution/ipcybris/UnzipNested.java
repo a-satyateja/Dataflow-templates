@@ -211,7 +211,7 @@ public class UnzipNested {
     @SuppressWarnings("serial")
     public static class DecompressNew extends DoFn<MatchResult.Metadata, String> {
         private static final long serialVersionUID = 2015166770614756341L;
-
+        private long filesUnzipped = 0;
         private String outp = "NA";
         private List<String> publishresults = new ArrayList<>();
         private static final Logger log = LoggerFactory.getLogger(UnzipNested.class);
@@ -224,7 +224,6 @@ public class UnzipNested {
 
         @ProcessElement
         public void processElement(ProcessContext c) {
-            long filesUnzipped = 0;
             ResourceId p = c.element().resourceId();
             GcsUtilFactory factory = new GcsUtilFactory();
             GcsUtil u = factory.create(c.getPipelineOptions());
@@ -305,14 +304,14 @@ public class UnzipNested {
 
                     }
                     ze = zis.getNextEntry();
-                    filesUnzipped++;
-                    log.info("unzipped count" + filesUnzipped);
                 }
                 outp = getFinalOutput(publishresults);
                 publishresults.clear();
                 images.clear();
                 zis.closeEntry();
                 zis.close();
+                filesUnzipped++;
+                log.info("unzipped count" + filesUnzipped);
             } catch (Exception e) {
                 log.error("error encountered" + e);
             }
