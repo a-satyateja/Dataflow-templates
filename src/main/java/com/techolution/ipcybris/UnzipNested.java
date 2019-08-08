@@ -47,6 +47,7 @@ import static org.apache.beam.sdk.util.GcsUtil.*;
 import com.google.pubsub.v1.ProjectTopicName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.beam.sdk.transforms.Count;
 
 
 /**
@@ -210,7 +211,7 @@ public class UnzipNested {
     @SuppressWarnings("serial")
     public static class DecompressNew extends DoFn<MatchResult.Metadata, String> {
         private static final long serialVersionUID = 2015166770614756341L;
-        private long filesUnzipped = 0;
+
         private String outp = "NA";
         private List<String> publishresults = new ArrayList<>();
         private static final Logger log = LoggerFactory.getLogger(UnzipNested.class);
@@ -223,6 +224,7 @@ public class UnzipNested {
 
         @ProcessElement
         public void processElement(ProcessContext c) {
+            long filesUnzipped = 0;
             ResourceId p = c.element().resourceId();
             GcsUtilFactory factory = new GcsUtilFactory();
             GcsUtil u = factory.create(c.getPipelineOptions());
@@ -240,7 +242,7 @@ public class UnzipNested {
                     String entry_name = ze.getName();
                     if (entry_name.toUpperCase().contains(".TIF")) {
                         try {
-                            log.info("extracting :", entry_name);
+                            log.info("extracting :" + entry_name);
                             WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + entry_name), getType(entry_name));
                             OutputStream os = Channels.newOutputStream(wri);
                             int len;
@@ -248,9 +250,7 @@ public class UnzipNested {
                                 os.write(buffer, 0, len);
                             }
                             os.close();
-                            log.info("extraction success : ", entry_name);
-                            filesUnzipped++;
-                            log.info("unzipped count" + filesUnzipped);
+                            log.info("extraction success : " + entry_name);
                             publishresults.add(this.destinationLocation.get() + entry_name);
                         }
                         catch (Exception e) {
@@ -293,7 +293,7 @@ public class UnzipNested {
                                         MoreExecutors.directExecutor());
 
                             } catch (IOException er) {
-                                log.error("Error publishing message : ", er);
+                                log.error("Error publishing message : " + er.toString());
                             } finally {
                                 if (publisher != null) {
                                     // When finished with the publisher, shutdown to free up resources.
@@ -305,6 +305,8 @@ public class UnzipNested {
 
                     }
                     ze = zis.getNextEntry();
+                    filesUnzipped++;
+                    log.info("unzipped count" + filesUnzipped);
                 }
                 outp = getFinalOutput(publishresults);
                 publishresults.clear();
@@ -312,7 +314,7 @@ public class UnzipNested {
                 zis.closeEntry();
                 zis.close();
             } catch (Exception e) {
-                log.error("error encountered", e);
+                log.error("error encountered" + e);
             }
             c.output(outp);
         }
