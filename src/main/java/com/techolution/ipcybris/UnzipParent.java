@@ -288,7 +288,7 @@ public class UnzipParent {
                                         MoreExecutors.directExecutor());
 
                             } catch (IOException er) {
-                                log.error("Error publishing message : ", er);
+                                log.error("Error publishing message : "+ er);
                             } finally {
                                 if (publisher != null) {
                                     // When finished with the publisher, shutdown to free up resources.
