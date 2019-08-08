@@ -5,6 +5,7 @@ import com.google.api.core.ApiFuture;
 import com.google.api.core.ApiFutureCallback;
 import com.google.api.core.ApiFutures;
 import com.google.api.gax.rpc.ApiException;
+import com.google.cloud.Tuple;
 import com.google.cloud.pubsub.v1.Publisher;
 import com.google.common.annotations.VisibleForTesting;
 
@@ -42,6 +43,7 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.util.GcsUtil;
 import org.apache.beam.sdk.util.gcsfs.GcsPath;
 import org.apache.beam.sdk.values.*;
+
 import static org.apache.beam.sdk.util.GcsUtil.*;
 
 import com.google.pubsub.v1.ProjectTopicName;
@@ -188,18 +190,24 @@ public class UnzipNested {
          * Steps:
          *   1) Decompress the input files found and output them to the output directory
          */
-
         // Create the pipeline
         Pipeline pipeline = Pipeline.create(options);
 
         // Run the pipeline over the work items.
 
-        pipeline
-                .apply("MatchFile(s)", FileIO.match().filepattern(options.getInputFilePattern()))
-                .apply(
-                        "DecompressFile(s)",
-                        ParDo.of(new DecompressNew(options.getOutputDirectory())))
-                .apply("Write to PubSub", PubsubIO.writeStrings().to(options.getOutputTopic()));
+        final TupleTag<String> successTag = new TupleTag<String>() {
+        };
+        final TupleTag<String> errorTag = new TupleTag<String>() {
+        };
+
+        PCollection<MatchResult.Metadata> match_patterns = pipeline.apply("MatchFile(s)", FileIO.match().filepattern(options.getInputFilePattern()));
+
+        PCollectionTuple pubsub_messages = match_patterns.apply("DecompressFile(s)", ParDo.of(new DecompressNew(options.getOutputDirectory())).withOutputTags(successTag, TupleTagList.of(errorTag)));
+
+        pubsub_messages.get(successTag).apply("Write Success to PubSub", PubsubIO.writeStrings().to(options.getOutputTopic()));
+
+        pubsub_messages.get(errorTag).apply("Write Failures to PubSub", PubsubIO.writeStrings().to("projects/ipweb-240115/topics/parent-test"));
+
 
         return pipeline.run();
     }
@@ -217,19 +225,21 @@ public class UnzipNested {
         private static final Logger log = LoggerFactory.getLogger(UnzipNested.class);
         private List<String> images = new ArrayList<>();
         private final ValueProvider<String> destinationLocation;
+        final TupleTag<String> successTag = new TupleTag<String>() {
+        };
+        final TupleTag<String> errorTag = new TupleTag<String>() {
+        };
 
         DecompressNew(ValueProvider<String> destinationLocation) {
             this.destinationLocation = destinationLocation;
         }
 
         @ProcessElement
-        public void processElement(ProcessContext c) {
+        public void processElement(ProcessContext c, MultiOutputReceiver outputReceiver) {
             ResourceId p = c.element().resourceId();
             GcsUtilFactory factory = new GcsUtilFactory();
             GcsUtil u = factory.create(c.getPipelineOptions());
             byte[] buffer = new byte[100000000];
-            ProjectTopicName topicName = ProjectTopicName.of("ipweb-240115", "parent-test");
-            Publisher publisher = null;
             try {
                 SeekableByteChannel sek = u.open(GcsPath.fromUri(p.toString()));
                 InputStream is;
@@ -251,57 +261,12 @@ public class UnzipNested {
                             os.close();
                             log.info("extraction success : " + entry_name);
                             publishresults.add(this.destinationLocation.get() + entry_name);
-                        }
-                        catch (Exception e) {
+                        } catch (Exception e) {
                             log.error(e.getMessage());
                             String error_message = e.getMessage();
-                            try {
-                                // Create a publisher instance with default settings bound to the topic
-                                publisher = Publisher.newBuilder(topicName).build();
-
-                                //List<String> messages = Arrays.asList("first message", "second message");
-
-                                ByteString data = ByteString.copyFromUtf8(error_message);
-                                PubsubMessage pubsubMessage = PubsubMessage.newBuilder().setData(data).build();
-
-                                // Once published, returns a server-assigned message id (unique within the topic)
-                                ApiFuture<String> future = publisher.publish(pubsubMessage);
-
-                                // Add an asynchronous callback to handle success / failure
-                                ApiFutures.addCallback(
-                                        future,
-                                        new ApiFutureCallback<String>() {
-
-                                            @Override
-                                            public void onFailure(Throwable throwable) {
-                                                if (throwable instanceof ApiException) {
-                                                    ApiException apiException = ((ApiException) throwable);
-                                                    // details on the API exception
-                                                    log.error(String.valueOf(apiException.getStatusCode().getCode()));
-                                                    log.error(String.valueOf(apiException.isRetryable()));
-                                                }
-                                                log.error("Error publishing message : " + error_message);
-                                            }
-
-                                            @Override
-                                            public void onSuccess(String messageId) {
-                                                // Once published, returns server-assigned message ids (unique within the topic)
-                                                log.error(messageId);
-                                            }
-                                        },
-                                        MoreExecutors.directExecutor());
-
-                            } catch (IOException er) {
-                                log.error("Error publishing message : " + er.toString());
-                            } finally {
-                                if (publisher != null) {
-                                    // When finished with the publisher, shutdown to free up resources.
-                                    publisher.shutdown();
-                                    publisher.awaitTermination(1, TimeUnit.MINUTES);
-                                }
-                            }
+//                            c.output(errorTag, error_message);
+                            outputReceiver.get(errorTag).output(error_message);
                         }
-
                     }
                     ze = zis.getNextEntry();
                 }
@@ -315,7 +280,7 @@ public class UnzipNested {
             } catch (Exception e) {
                 log.error("error encountered" + e);
             }
-            c.output(outp);
+            outputReceiver.get(successTag).output(outp);
         }
 
         private String getFinalOutput(List<String> publishresults) {
