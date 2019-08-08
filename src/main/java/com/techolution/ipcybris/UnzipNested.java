@@ -142,6 +142,10 @@ public class UnzipNested {
     static final TupleTag<KV<String, String>> DEADLETTER_TAG = new TupleTag<KV<String, String>>() {
     };
 
+
+
+
+
     /**
      * The {@link Options} class provides the custom execution options passed by the executor at the
      * command-line.
@@ -202,7 +206,7 @@ public class UnzipNested {
 
         PCollection<MatchResult.Metadata> match_patterns = pipeline.apply("MatchFile(s)", FileIO.match().filepattern(options.getInputFilePattern()));
 
-        PCollectionTuple pubsub_messages = match_patterns.apply("DecompressFile(s)", ParDo.of(new DecompressNew(options.getOutputDirectory())).withOutputTags(successTag, TupleTagList.of(errorTag)));
+        PCollectionTuple pubsub_messages = match_patterns.apply("DecompressFile(s)", ParDo.of(new DecompressNew(options.getOutputDirectory(), successTag, errorTag)).withOutputTags(successTag, TupleTagList.of(errorTag)));
 
         pubsub_messages.get(successTag).apply("Write Success to PubSub", PubsubIO.writeStrings().to(options.getOutputTopic()));
 
@@ -219,23 +223,23 @@ public class UnzipNested {
     @SuppressWarnings("serial")
     public static class DecompressNew extends DoFn<MatchResult.Metadata, String> {
         private static final long serialVersionUID = 2015166770614756341L;
+        private final TupleTag<String> successTag;
+        private final TupleTag<String> errorTag;
         private long filesUnzipped = 0;
         private String outp = "NA";
         private List<String> publishresults = new ArrayList<>();
         private static final Logger log = LoggerFactory.getLogger(UnzipNested.class);
         private List<String> images = new ArrayList<>();
         private final ValueProvider<String> destinationLocation;
-        final TupleTag<String> successTag = new TupleTag<String>() {
-        };
-        final TupleTag<String> errorTag = new TupleTag<String>() {
-        };
 
-        DecompressNew(ValueProvider<String> destinationLocation) {
+        DecompressNew(ValueProvider<String> destinationLocation, TupleTag<String> successTag, TupleTag<String> errorTag) {
             this.destinationLocation = destinationLocation;
+            this.successTag = successTag;
+            this.errorTag = errorTag;
         }
 
         @ProcessElement
-        public void processElement(ProcessContext c, MultiOutputReceiver outputReceiver) {
+        public void processElement(ProcessContext c) {
             ResourceId p = c.element().resourceId();
             GcsUtilFactory factory = new GcsUtilFactory();
             GcsUtil u = factory.create(c.getPipelineOptions());
@@ -264,8 +268,7 @@ public class UnzipNested {
                         } catch (Exception e) {
                             log.error(e.getMessage());
                             String error_message = e.getMessage();
-//                            c.output(errorTag, error_message);
-                            outputReceiver.get(errorTag).output(error_message);
+                            c.output(errorTag, error_message);
                         }
                     }
                     ze = zis.getNextEntry();
@@ -280,7 +283,7 @@ public class UnzipNested {
             } catch (Exception e) {
                 log.error("error encountered" + e);
             }
-            outputReceiver.get(successTag).output(outp);
+            c.output(successTag, outp);
         }
 
         private String getFinalOutput(List<String> publishresults) {
