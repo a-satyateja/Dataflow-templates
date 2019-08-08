@@ -35,8 +35,7 @@ import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.util.GcsUtil;
 import org.apache.beam.sdk.util.gcsfs.GcsPath;
-import org.apache.beam.sdk.values.KV;
-import org.apache.beam.sdk.values.TupleTag;
+import org.apache.beam.sdk.values.*;
 import org.apache.commons.io.FilenameUtils;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -165,6 +164,13 @@ public class UnzipParent {
         ValueProvider<String> getOutputTopic();
 
         void setOutputTopic(ValueProvider<String> value);
+
+        @Description("The name of the topic which data should be published to. "
+                + "The name should be in the format of projects/<project-id>/topics/<topic-name>.")
+        @Required
+        ValueProvider<String> getErrorTopic();
+
+        void setErrorTopic(ValueProvider<String> value);
     }
 
     public static void main(String[] args) {
@@ -188,10 +194,18 @@ public class UnzipParent {
         // Create the pipeline
         Pipeline pipeline = Pipeline.create(options);
 
-        // Run the pipeline over the work items.
-        pipeline.apply("MatchFile(s)", FileIO.match().filepattern(options.getInputFilePattern()))
-                .apply("DecompressFile(s)", ParDo.of(new DecompressNew(options.getOutputDirectory(), options.getInputFilePattern())))
-                .apply("Write to PubSub", PubsubIO.writeStrings().to(options.getOutputTopic()));
+        final TupleTag<String> successTag = new TupleTag<String>() {
+        };
+        final TupleTag<String> errorTag = new TupleTag<String>() {
+        };
+
+        PCollection<MatchResult.Metadata> match_patterns = pipeline.apply("Matching File(s)", FileIO.match().filepattern(options.getInputFilePattern()));
+
+        PCollectionTuple pubsub_messages = match_patterns.apply("Extracting File(s)", ParDo.of(new DecompressNew(options.getOutputDirectory(), options.getInputFilePattern(), successTag, errorTag)).withOutputTags(successTag, TupleTagList.of(errorTag)));
+
+        pubsub_messages.get(successTag).apply("Writing Success to Pub/Sub", PubsubIO.writeStrings().to(options.getOutputTopic()));
+
+        pubsub_messages.get(errorTag).apply("Writing Failures to Pub/Sub", PubsubIO.writeStrings().to(options.getErrorTopic()));
 
         return pipeline.run();
     }
@@ -203,14 +217,18 @@ public class UnzipParent {
     @SuppressWarnings("serial")
     public static class DecompressNew extends DoFn<MatchResult.Metadata, String> {
         private static final long serialVersionUID = 2015166770614756341L;
+        private final TupleTag<String> successTag;
+        private final TupleTag<String> errorTag;
         private long filesUnzipped = 0;
         private static final Logger log = LoggerFactory.getLogger(UnzipParent.class);
         private final ValueProvider<String> destinationLocation;
         private final ValueProvider<String> inputFilePattern;
 
-        DecompressNew(ValueProvider<String> destinationLocation, ValueProvider<String> inputFilePattern) {
+        DecompressNew(ValueProvider<String> destinationLocation, ValueProvider<String> inputFilePattern, TupleTag<String> successTag, TupleTag<String> errorTag) {
             this.destinationLocation = destinationLocation;
             this.inputFilePattern = inputFilePattern;
+            this.successTag = successTag;
+            this.errorTag = errorTag;
         }
 
         @ProcessElement
@@ -253,51 +271,7 @@ public class UnzipParent {
                         } catch (Exception e) {
                             log.error(e.getMessage());
                             String error_message = e.getMessage();
-                            try {
-                                // Create a publisher instance with default settings bound to the topic
-                                publisher = Publisher.newBuilder(topicName).build();
-
-//                                List<String> messages = Arrays.asList("first message", "second message");
-
-                                ByteString data = ByteString.copyFromUtf8(error_message);
-                                PubsubMessage pubsubMessage = PubsubMessage.newBuilder().setData(data).build();
-
-                                // Once published, returns a server-assigned message id (unique within the topic)
-                                ApiFuture<String> future = publisher.publish(pubsubMessage);
-
-                                // Add an asynchronous callback to handle success / failure
-                                ApiFutures.addCallback(
-                                        future,
-                                        new ApiFutureCallback<String>() {
-
-                                            @Override
-                                            public void onFailure(Throwable throwable) {
-                                                if (throwable instanceof ApiException) {
-                                                    ApiException apiException = ((ApiException) throwable);
-                                                    // details on the API exception
-                                                    log.error(String.valueOf(apiException.getStatusCode().getCode()));
-                                                    log.error(String.valueOf(apiException.isRetryable()));
-                                                }
-                                                log.error("Error publishing message : " + error_message);
-                                            }
-
-                                            @Override
-                                            public void onSuccess(String messageId) {
-                                                // Once published, returns server-assigned message ids (unique within the topic)
-                                                log.error(messageId);
-                                            }
-                                        },
-                                        MoreExecutors.directExecutor());
-
-                            } catch (IOException er) {
-                                log.error("Error publishing message : "+ er);
-                            } finally {
-                                if (publisher != null) {
-                                    // When finished with the publisher, shutdown to free up resources.
-                                    publisher.shutdown();
-                                    publisher.awaitTermination(1, TimeUnit.MINUTES);
-                                }
-                            }
+                            c.output(errorTag, error_message);
                         }
                         ze = zis.getNextEntry();
                     }
@@ -313,7 +287,7 @@ public class UnzipParent {
                     while (te != null) {
                         String te_name = te.getName();
                         try {
-                            log.info("extracting :"+ te_name);
+                            log.info("extracting :" + te_name);
                             WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + randomStr + "-unzip" + te_name), getType(te_name));
                             OutputStream os = Channels.newOutputStream(wri);
                             int len;
@@ -321,54 +295,13 @@ public class UnzipParent {
                                 os.write(buffer, 0, len);
                             }
                             os.close();
-                            log.info("extraction success : "+ te_name);
+                            log.info("extraction success : " + te_name);
                             filesUnzipped++;
                             log.info("unzipped count" + filesUnzipped);
                         } catch (Exception e) {
                             log.error(e.getMessage());
                             String error_message = e.getMessage();
-                            try {
-                                // Create a publisher instance with default settings bound to the topic
-                                publisher = Publisher.newBuilder(topicName).build();
-                                ByteString data = ByteString.copyFromUtf8(error_message);
-                                PubsubMessage pubsubMessage = PubsubMessage.newBuilder().setData(data).build();
-
-                                // Once published, returns a server-assigned message id (unique within the topic)
-                                ApiFuture<String> future = publisher.publish(pubsubMessage);
-
-                                // Add an asynchronous callback to handle success / failure
-                                ApiFutures.addCallback(
-                                        future,
-                                        new ApiFutureCallback<String>() {
-
-                                            @Override
-                                            public void onFailure(Throwable throwable) {
-                                                if (throwable instanceof ApiException) {
-                                                    ApiException apiException = ((ApiException) throwable);
-                                                    // details on the API exception
-                                                    log.error(String.valueOf(apiException.getStatusCode().getCode()));
-                                                    log.error(String.valueOf(apiException.isRetryable()));
-                                                }
-                                                log.error("Error publishing message : " + error_message);
-                                            }
-
-                                            @Override
-                                            public void onSuccess(String messageId) {
-                                                // Once published, returns server-assigned message ids (unique within the topic)
-                                                log.error(messageId);
-                                            }
-                                        },
-                                        MoreExecutors.directExecutor());
-
-                            } catch (IOException er) {
-                                log.error("Error publishing message : "+ er);
-                            } finally {
-                                if (publisher != null) {
-                                    // When finished with the publisher, shutdown to free up resources.
-                                    publisher.shutdown();
-                                    publisher.awaitTermination(1, TimeUnit.MINUTES);
-                                }
-                            }
+                            c.output(errorTag, error_message);
                         }
                         te = tis.getNextTarEntry();
                     }
@@ -385,7 +318,7 @@ public class UnzipParent {
             JSONObject pubsubout = new JSONObject();
             pubsubout.put("parent-name", input_name);
             pubsubout.put("extraction-path", desPath);
-            c.output(pubsubout.toString());
+            c.output(successTag, pubsubout.toString());
         }
 
         private String getType(String fName) {

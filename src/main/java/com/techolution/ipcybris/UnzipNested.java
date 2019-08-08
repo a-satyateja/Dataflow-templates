@@ -169,6 +169,14 @@ public class UnzipNested {
         ValueProvider<String> getOutputTopic();
 
         void setOutputTopic(ValueProvider<String> value);
+
+
+        @Description("The name of the topic which data should be published to. "
+                + "The name should be in the format of projects/<project-id>/topics/<topic-name>.")
+        @Required
+        ValueProvider<String> getErrorTopic();
+
+        void setErrorTopic(ValueProvider<String> value);
     }
 
 
@@ -210,7 +218,7 @@ public class UnzipNested {
 
         pubsub_messages.get(successTag).apply("Write Success to PubSub", PubsubIO.writeStrings().to(options.getOutputTopic()));
 
-        pubsub_messages.get(errorTag).apply("Write Failures to PubSub", PubsubIO.writeStrings().to("projects/ipweb-240115/topics/parent-test"));
+        pubsub_messages.get(errorTag).apply("Write Failures to PubSub", PubsubIO.writeStrings().to(options.getErrorTopic()));
 
 
         return pipeline.run();
