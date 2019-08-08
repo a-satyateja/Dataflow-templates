@@ -239,7 +239,7 @@ public class UnzipParent {
                     while (ze != null) {
                         String ze_name = ze.getName();
                         try {
-                            log.info("extracting :" + ze_name);
+                            log.info("extracting : " + ze_name);
                             WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + randomStr + "-unzip" + ze_name), getType(ze_name));
                             OutputStream os = Channels.newOutputStream(wri);
                             int len;
@@ -247,6 +247,8 @@ public class UnzipParent {
                                 os.write(buffer, 0, len);
                             }
                             os.close();
+                            log.info("extracted file : " + ze_name);
+                            filesUnzipped++;
                             log.info("unzipped count" + filesUnzipped);
                         } catch (Exception e) {
                             log.error(e.getMessage());
@@ -299,8 +301,6 @@ public class UnzipParent {
                         }
                         ze = zis.getNextEntry();
                     }
-                    filesUnzipped++;
-                    log.info("unzipped count" + filesUnzipped);
                     zis.closeEntry();
                     zis.close();
                 } else if (ext.equalsIgnoreCase("tar")) {
