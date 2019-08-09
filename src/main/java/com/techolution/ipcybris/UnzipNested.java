@@ -47,6 +47,7 @@ import org.apache.beam.sdk.values.*;
 import static org.apache.beam.sdk.util.GcsUtil.*;
 
 import com.google.pubsub.v1.ProjectTopicName;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.beam.sdk.transforms.Count;
@@ -276,7 +277,10 @@ public class UnzipNested {
                         } catch (Exception e) {
                             log.error(e.getMessage());
                             String error_message = e.getMessage();
-                            c.output(errorTag, error_message);
+                            JSONObject error_object = new JSONObject();
+                            error_object.put("file-name", entry_name);
+                            error_object.put("error-message", error_message);
+                            c.output(errorTag, error_object.toString());
                         }
                     }
                     ze = zis.getNextEntry();

@@ -271,7 +271,10 @@ public class UnzipParent {
                         } catch (Exception e) {
                             log.error(e.getMessage());
                             String error_message = e.getMessage();
-                            c.output(errorTag, error_message);
+                            JSONObject error_object = new JSONObject();
+                            error_object.put("file-name", ze_name);
+                            error_object.put("error-message", error_message);
+                            c.output(errorTag, error_object.toString());
                         }
                         ze = zis.getNextEntry();
                     }
@@ -301,7 +304,10 @@ public class UnzipParent {
                         } catch (Exception e) {
                             log.error(e.getMessage());
                             String error_message = e.getMessage();
-                            c.output(errorTag, error_message);
+                            JSONObject error_object = new JSONObject();
+                            error_object.put("file-name", te_name);
+                            error_object.put("error-message", error_message);
+                            c.output(errorTag, error_object.toString());
                         }
                         te = tis.getNextTarEntry();
                     }
