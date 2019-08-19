@@ -1,8 +1,6 @@
 
 package com.techolution.ipcybris;
 
-import com.google.api.core.ApiFutureCallback;
-import com.google.api.gax.rpc.ApiException;
 import com.google.common.annotations.VisibleForTesting;
 
 import java.io.*;
@@ -10,13 +8,11 @@ import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.beam.repackaged.beam_sdks_java_core.org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.beam.repackaged.beam_sdks_java_core.org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.beam.sdk.Pipeline;
@@ -40,13 +36,8 @@ import org.apache.commons.io.FilenameUtils;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.google.api.core.ApiFuture;
-import com.google.api.core.ApiFutures;
-import com.google.cloud.ServiceOptions;
 import com.google.cloud.pubsub.v1.Publisher;
-import com.google.protobuf.ByteString;
 import com.google.pubsub.v1.ProjectTopicName;
-import com.google.pubsub.v1.PubsubMessage;
 
 /**
  * This pipeline decompresses file(s) from Google Cloud Storage and re-uploads them to a destination
@@ -130,9 +121,6 @@ public class UnzipParent {
     static final String MALFORMED_ERROR_MSG =
             "The file resource %s is malformed or not in %s compressed format.";
 
-    /**
-     * The tag used to identify the main output of the {@link Decompress} DoFn.
-     */
     @VisibleForTesting
     static final TupleTag<String> DECOMPRESS_MAIN_OUT_TAG = new TupleTag<String>() {
     };
@@ -253,12 +241,12 @@ public class UnzipParent {
                     BufferedInputStream bis = new BufferedInputStream(is);
                     ZipInputStream zis = new ZipInputStream(bis);
                     ZipEntry ze = zis.getNextEntry();
-                    desPath = this.destinationLocation.get() + randomStr + "-unzip";
+                    desPath = this.destinationLocation.get() + randomStr + "-unpack";
                     while (ze != null) {
                         String ze_name = ze.getName();
                         try {
                             log.info("extracting : " + ze_name);
-                            WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + randomStr + "-unzip" + ze_name), getType(ze_name));
+                            WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + randomStr + "-unpack" + ze_name), getType(ze_name));
                             OutputStream os = Channels.newOutputStream(wri);
                             int len;
                             while ((len = zis.read(buffer)) > 0) {
@@ -286,12 +274,12 @@ public class UnzipParent {
                     BufferedInputStream bis = new BufferedInputStream(is);
                     TarArchiveInputStream tis = new TarArchiveInputStream(bis);
                     TarArchiveEntry te = tis.getNextTarEntry();
-                    desPath = this.destinationLocation.get() + randomStr + "-untar";
+                    desPath = this.destinationLocation.get() + randomStr + "-unpack";
                     while (te != null) {
                         String te_name = te.getName();
                         try {
                             log.info("extracting :" + te_name);
-                            WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + randomStr + "-unzip" + te_name), getType(te_name));
+                            WritableByteChannel wri = u.create(GcsPath.fromUri(this.destinationLocation.get() + randomStr + "-unpack" + te_name), getType(te_name));
                             OutputStream os = Channels.newOutputStream(wri);
                             int len;
                             while ((len = tis.read(buffer)) > 0) {
